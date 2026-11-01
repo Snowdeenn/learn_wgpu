@@ -1,0 +1,143 @@
+Je veux faire évoluer ton moteur 2D pour gérer automatiquement le dessin des sprites, en l’intégrant à ton API actuelle.
+
+Supporter trois modes de textures : textures séparées, texture arrays avec un indice de couche, et atlas avec une région d’UV.
+
+Exposer une API simple, avec une ou plusieurs fonctions prenant deux ou trois paramètres maximum.
+
+Ne plus écrire manuellement bind → draw : le moteur choisit les pipelines, les bind groups et les plages d’instances.
+Spécifiquement ça pass.set_bind_group(2, &ctx.bind_groups()[2], &[]);
+                                pass.draw_indexed(0..**index_count, 0, 0..1); bind un context n'est pas un problème backend::bind(&*ctx, pass);
+                                pass.draw_indexed(0..**index_count, 0, 0..1); juste il faut changer le pass.draw_indexed par autre chose qui supporte les modes
+
+Décrire chaque sprite avec sa position lier a celle de l'instance qu'il dessine, sa taille, sa couleur et sa source de texture.
+Prévoir le batching dès la conception : enregistrer les demandes, préparer les instances et regrouper les dessins compatibles, tout en respectant l’ordre nécessaire à la transparence.
+
+Réutiliser mon backend existant — Texture, buffers, bind groups, PipelineContext et passes — en assouplissant ce qui est nécessaire.
+Préférer les fonctions libres au méthodes d'objet pour l'api si il faut faire en sorte que les gros objets soient implicite.
+
+TextureStorage -> Arena (que j'ai déjà) implicite ? -> init avec le context (celui global pas celui de la pipeline) ? // ça me parait bizarre d'avoir un texture storage avec l'api actuelle (j'ai pas envie de la passer partout sur les fonctions de dessin)
+Comment stocker les différents modes dans le storage (il est statiquement typé) ? -> trait comment qui définis comment ce comporte chaque mode ? mais est ce que c'est suffisant pour les stocker comme ça ? (pas sûr)
+
+J'ai plus envie de faire un moteur baser sur les fonctions que des objets pour l'instant (plus modulaire je trouve) (en gros cacher les gros objets pour l'utilisateur)
+Eviter le code répétitif aussi pour l'utilisateur (après si c'est l'appel d'une fonction ça va)
+
+-- Décision --
+
+. Arena protégé par un RwLock dans le context global du moteur (qui lui est un OnceLock qui partage des ref non mutable donc RwLock obliger) (plus tard à voir pour le lock free)
+ 
+. Garder les verrous court, résoudre les IDs et récupérer les handles nécessaires sous verrou, puis préparer et dessiner après l’avoir relâché.
+
+. Stocke un enum
+
+. Fonction de chargement et d'enregistrement (ex: load_texture() et register_texture() pour les textures séparés) -> accède à l'Arena implicitement
+
+. Id de la resource de dessin attaché a l'instance (champs dans Dummy)
+
+. Struct commune TextureResource (à voir pour le nom) :
+
+	struct TextureResource {
+    		texture: Texture,
+    		sampler: wgpu::Sampler,
+    		bind_group: wgpu::BindGroup,
+	}
+
+. Enum pour supporter les 3 types de resources qui porte leurs données (id dans le Storage, et autre métadata utile pour le moteur) :
+		
+	enum SpriteResource {
+		Separate (TextureResource),
+		Array (TextureResource),
+		Atlas {
+			resource: TextureResource
+			region: Arena<AtlasRegion>,
+		}
+	}
+
+. On utilise le wrapper Texture déjà existent
+
+. L'instance porte ces données via un enum : 
+
+	enum Sprite {
+		Separate {
+			texture: TextureId,
+		},
+		Array {
+			texture: TextureId,
+			layer: u32,
+		},
+		Atlas {
+			texture: TextureId,
+			region: RegionId,
+		}
+	}
+
+Remarque: Api descriptive pas définitive.
+
+. Dessin avec une fonction draw (le nom est a décider) qui dessine les instances -> En interne résout les textures bind les groups de texture et dessine.
+. Prend la pass et les données des instances (pour avoir accès aux Id) et une range pour savoir combien d'instance dessiner (le context de la pipeline est bind en amont via    bind()).
+
+. Fonction qui résout les Textures à utiliser en interne. 
+
+. Séparation des données CPU et GPU lors de la préparation et de la résolution des resources créer un une structure qui contient ce que doit utiliser le GPU (un genre de RenderObject générique) cela implique de construire les buffers des instances aussi du coup.
+
+. Pour la compatibilité des pipelines, pour des raisons de simplicité dans un premier temps ce sera à la charge du dev de garantir que ce soit compatible à terme il faudra changer cela (uniformiser sous un type de texture), pour l'instant une erreur clair ou laisser la couche de validation le faire.
+
+. La range d'instance représente les instances à dessiner dans le tableau d'instance données à la fonction. L'ordre des instances importe peut pour le dessin parce que ça suppose au le tableau regroupe des instances partageant les mm resources seul les paramètres comme la position sont important de le tableau d'instance. En gros la range sert à décider si on veut dessiner tout le tableau ou pas.
+
+
+. prepare_batches(instances, range) :
+
+	La range sélectionne les instances à dessiner dans le tableau fourni.
+
+	La fonction :
+
+	Résout les ressources depuis l’arena du contexte global, accessible implicitement. Prépare les données GPU. Regroupe les instances consécutives compatibles en 	batches. Conserve l’ordre du tableau pour respecter les superpositions et la transparence. Retourne les batches sans effectuer de draw call. Le verrou de l’arena est 	conservé uniquement le temps de récupérer les ressources et de cloner les handles nécessaires. Il est relâché avant la préparation GPU et le dessin.
+	Un batch partage le même pipeline, les mêmes états de rendu et la même ressource de texture. Les couches d’une même texture array ou les régions d’un même atlas 	peuvent varier dans un batch.
+
+draw(batch, pass) :
+
+	La fonction :
+
+	Reçoit un batch préparé, valide et non vide. Bind automatiquement les ressources de texture. Effectue exactement un draw call. Utilise le pipeline compatible bindé en 	amont.
+
+	Ne prend aucun verrou sur l’arena, car le batch conserve les handles nécessaires.
+
+draw_all(instances, range, pass) :
+
+	La fonction combine :
+
+	L’appel à prepare_batches(). La boucle sur les batches. L’appel à draw() pour chaque batch.
+
+	Elle peut donc effectuer plusieurs draw calls.
+	Une plage vide ne produit aucun draw call.
+
+Utilisation explicite :
+
+backend::bind(&*ctx, pass);
+
+let batches = prepare_batches(&instances, range)?;
+for batch in &batches {
+	draw(batch, pass)?;
+}
+
+Utilisation automatique :
+
+backend::bind(&*ctx, pass);
+draw_all(&instances, range, pass)?;
+
+Les noms et signatures restent indicatifs.
+
+L’utilisateur n’a plus à écrire les changements de bind groups ni les appels à draw_indexed.
+
+-- Optimisation / Amélioration --
+
+. Ne plus hard coder les binds group dans draw_all().
+
+. Préparer les RenderInstance en amont de la boucle de dessin pour éviter une allocation gpu par instance.
+
+. Eliminer la création d'un buffer à chaque appels de draw_all().
+
+. Mettre en place un State Global qui sauvegarde l'état des instances de rendu ? (pour les préparer en amont
+	et les récupérer dans pour le dessin.
+).
+
+

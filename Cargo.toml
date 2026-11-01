@@ -1,0 +1,25 @@
+[package]
+name = "learn_wgpu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = "1.25.2"
+env_logger = "0.11.11"
+image = "0.25.10"
+pollster = "1.0.1"
+rand = "0.10.3"
+tracing = "0.1.44"
+wgpu = { version = "30.0.1", features = ["trace"] }
+winit = "0.30.13"
+math = { git = "https://github.com/Snowdeenn/math.git" }
+new_collection = { git = "https://github.com/Snowdeenn/new_collection.git" }
+egui = { version = "0.37.0", features = ["default_fonts"] }
+egui-winit = "0.37.0"
+egui-wgpu = "0.37.0"
+paste = "1.0.15"
+
+[package.metadata.wgsl-analyzer]
+edition = "2026_pre" 
+package_manager = "cargo" 
+root = "./src/shader/"
