@@ -78,8 +78,7 @@ impl Input {
     }
 
     pub fn mouse_pressed(&mut self, button: MouseButton) {
-        if self.mouse.press(button) && button == MouseButton::Left {
-        }
+        if self.mouse.press(button) && button == MouseButton::Left {}
     }
 
     pub fn mouse_release(&mut self, button: MouseButton) {

@@ -140,4 +140,143 @@ L’utilisateur n’a plus à écrire les changements de bind groups ni les appe
 	et les récupérer dans pour le dessin.
 ).
 
+-- Buffer Persistent / Gestion de plusieurs Buffer --
+
+. Dans quels cas c'est utile ? 
+	- Si j'ai besoin d'avoir plusieurs format d'instances
+	- Collection avec durée de vie différentes (entre différente scène)
+
+. Est ce que j'aurais besoin de créer plusieurs buffers d'instances de rendu ? Cas d'utilisation de plusieurs buffers d'instances ?
+. Si c'est un buffer interne persistent comment gérer les accès concurrent ? (Lock ?; Lock-free ?)
+. Buffer interne avec allocateur custom ? renvoie des handles qui contiennent la range allouer ?
+
+. Piste retenue : gros buffer GPU persistant avec un allocateur interne de régions (sous-allocation).
+
+	Quand on demande un buffer d'instances, l'allocateur réserve une région du gros buffer et retourne un handle.
+	Quand on libère cette allocation, la région redevient disponible ; le gros buffer GPU reste alloué.
+	Le handle permet de retrouver l'offset et la capacité en octets, ainsi que le nombre d'instances utilisées.
+
+. Plusieurs formats d'instances peuvent cohabiter dans cette même arène : chaque région contient son propre format.
+
+	Le bind group référence uniquement la région de l'allocation via un BufferBinding :
+	buffer = le gros buffer, offset = début de la région, size = taille de la région.
+	Le shader voit cette région comme son tableau d'instances, avec le format attendu par le pipeline.
+	Les indices de dessin sont locaux à la région liée (0..len pour toute la collection).
+
+. Garder une API publique composée de fonctions ; l'arène, l'allocateur et les objets GPU restent internes.
+
+-- Contraintes à gérer --
+
+-- Piste à affiner : arène de buffers par pages --
+
+. Remplacer le principe du buffer GPU unique qui grossit par plusieurs pages, chacune contenant un buffer GPU de capacité fixe.
+
+	L'allocateur cherche une région libre assez grande dans les pages existantes, en respectant l'alignement.
+	Si aucune page ne convient, il ajoute une page sans déplacer les allocations existantes.
+	Une allocation plus grande que la capacité habituelle d'une page pourrait avoir une page dédiée.
+
+. Le handle permet de retrouver la page, l'offset, la capacité et le nombre d'instances utilisées.
+
+	Piste : handle générationnel opaque vers une table CPU d'allocations, dont chaque entrée contient ces informations.
+	Pour écrire ou créer un binding, on résout le handle puis on récupère le buffer de la page correspondante.
+
+. Ajouter une page ne demande pas de reconstruire les bind groups existants : les buffers qu'ils référencent restent les mêmes.
+
+	Un bind group référence un buffer GPU précis, un offset et une taille, pas le champ « buffer courant » de l'arène.
+	À l'inverse, remplacer un buffer par un autre impose de recréer les bind groups concernés, même si les offsets sont conservés.
+	Les handles CPU peuvent rester valides via l'indirection, mais cela ne met pas automatiquement à jour les bind groups.
+
+. Organisation des bindings à décider :
+	- Un bind group par allocation, qui référence directement sa région dans le buffer de sa page.
+	- Un bind group par page avec offset dynamique, si le layout et la taille de binding le permettent.
+	- Pour un storage buffer, possibilité de sélectionner les données par un index dans la plage liée.
+	Changer de page peut nécessiter de changer de bind group ; respecter les limites de taille des bindings et les alignements.
+
+. Première version possible : allocation en fin de page, ajout de pages au besoin, aucun déplacement.
+
+	Ajouter ensuite la réutilisation des régions libérées via une liste de plages libres.
+	Prévoir que plusieurs pages peuvent augmenter les changements de bind groups pendant le rendu.
+	Une éventuelle compaction ou le déplacement d'une allocation qui dépasse sa capacité nécessitera de mettre à jour les bindings concernés.
+	La réutilisation des régions doit aussi tenir compte des commandes GPU qui utilisent encore leurs données.
+
+. Cette architecture reste une piste à affiner, sans implémentation pour l'instant.
+
+-- Questions restantes / alternative du buffer unique --
+
+. Comment gérer l'agrandissement de l'arène sachant qu'un buffer GPU a une taille fixe ?
+	- Copie dans un buffer plus grand des donnée stocker (conserver l'ordre des données)
+	- Normalement en conservant l'ordre les zones déjà allouer ne devrait pas être changer
+	- Est ce que j'ai besoin de mettre a jour les binds groups déjà créer ?
+
+. Comment conserver les données existantes quand le buffer change ?
+	- On copie les données de l'ancien buffer dans le nouveau en conservant l'ordre et les offsets pour ne pas invalider les offsets
+		déjà allouer.
+
+. Comment gérer une allocation qui dépasse sa capacité ?
+. Comment gérer la fragmentation et les régions libres ?
+. Comment garder les handles valides si une région est déplacée ?
+	- Indirection partage un handle vers le pointeur du buffer et non vers la zone (garde le handle stable côté cpu)
+		utilisation d'une table d'allocation pour les entrées ?
+
+. Comment détecter l'utilisation d'un handle déjà libéré ?
+	- Utilisation d'handle générationnel (refuse nativement un mauvais handle)
+
+. Comment respecter les contraintes d'alignement des offsets et de taille des bindings ?
+. Comment garantir que le format des instances correspond au layout attendu par le shader ?
+. Comment gérer les bind groups quand une région change de position, de taille ou de buffer ?
+. Quand peut-on réutiliser une région sans affecter les commandes de dessin qui utilisent encore ses données ?
+. Comment gérer plusieurs écritures et dessins sur une même région dans une même soumission ?
+. Comment gérer les limites de taille du buffer et des bindings de stockage ?
+
+
+-- Choix fait sur le Buffer Persistent --
+
+. Besoin d'une structure qui stock les pages (via un vec), et une table d'allocations (via une arena générationnel).
+
+. On part sur une arène(générationnel déjà en place) par pages avec alignement(terme encore à préciser), table d'allocations et handle
+	Cet à dire on utilise une arène générationnel pour stocker des pages (à l'image de la mémoire virtuelle)
+	qui représentent un buffer dans lequel on va allouer de l'espace pour stocker nos données.
+
+. Donc l'arène ou un vec possède les buffers (pages).
+
+. On maintient une free list avec les indices des pages a utiliser quand elle est libre un part sur un First Fit pour l'instant
+
+. Une page rassemble son buffer (wgpu::Buffer), sa taille + capacité ? (ou c'est la mm chose), son état (utiliser / libre) ? 
+	-> L'arène stock ça.
+
+pub struct Page {
+	buffer: wgpu::Buffer,
+	size: u64,
+	next_offset: u64,
+	(state: State ?) -> Gérer par la génération du handle de l'alloc ?
+}
+
+. Pour les allocations on part sur un design de ce style: 
+
+pub struct Allocation {
+	page: PageHandle (handle que l'arène de la page renvoi ou un indice),
+	offset: u64,
+	len: u64
+}
+
+. Cette structure décrit l'allocation qui est réaliser dans la page. Elle est stocké dans sa propre arena et c'est l'handle que 
+	renvoie cette arena qui sera utilisé par l'utilisateur.
+
+. On va donc faire une résolution sur 2 niveau on va d'abord récuprer l'allocation puis la zone du buffer (si utilisation de l'arena pour les pages).
+
+. Création de l'allocation:
+	- On demande au moteur une allocation via l'api qui sera proposer on renseigne la taille voulu.
+	- On regarde dans les pages on prend la première disponible avec dans laquel on peut insérer nos données (je pense qu'il faudra
+		conserver un offset pour la prochaine écriture).
+	- Si aucune disponible on en créer une autre et on alloue dedans.
+	- On construit notre allocation on la stock dans son arena et puis on renvoi son handle.
+	- Et on construit notre Buffer typé (je sais pas encore comment je pourrais typé la région).
+
+. Il faudra explicitement demander que T soit Pod et Zerable.
+
+. Ecriture -> on résout les handles puis on vérifie si l'écriture ne dépasse pas la page si oui on écrit sinon c'est encore a décider.
+	- Il faudra creer une api pour les buffers typé spécial pour écrire dans les buffers. 
+
+. Typage des région: Les régions sont typé seulement pour la lisibilité et pour permettre au compilateur de suivre les buffers
+	- Utilisation du buffer Typé Buffer<T, K> présent et la construction des buffers se fait par l'api qui est présente aussi (besoin de refactor)
 

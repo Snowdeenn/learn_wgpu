@@ -8,21 +8,21 @@ pub fn bind<'a>(ctx: &'a impl PipelineContext, pass: &mut wgpu::RenderPass<'_>) 
     }
 
     for (i, vb) in ctx.vertex_buffer().iter().enumerate() {
-        if let Some(buffer) = vb {
-            pass.set_vertex_buffer(i as u32, buffer.slice(..));
+        if let Some((buffer, range)) = vb {
+            pass.set_vertex_buffer(i as u32, buffer.slice(range.clone()));
         }
     }
 
-    if let Some(ib) = ctx.index_buffer() {
-        pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
+    if let Some((buffer, range)) = ctx.index_buffer() {
+        pass.set_index_buffer(buffer.slice(range.clone()), wgpu::IndexFormat::Uint32);
     }
 }
 
 pub trait PipelineContext {
     fn pipeline(&self) -> &wgpu::RenderPipeline;
     fn bind_groups(&self) -> &[Option<wgpu::BindGroup>];
-    fn index_buffer(&self) -> Option<&wgpu::Buffer>;
-    fn vertex_buffer(&self) -> &[Option<wgpu::Buffer>];
+    fn index_buffer(&self) -> Option<&(wgpu::Buffer, std::ops::Range<u64>)>;
+    fn vertex_buffer(&self) -> &[Option<(wgpu::Buffer, std::ops::Range<u64>)>];
 }
 
 #[macro_export]
@@ -32,8 +32,8 @@ macro_rules! define_pipeline_context {
             pub struct [<$name PipelineContext>] {
                 pub pipeline: wgpu::RenderPipeline,
                 pub bind_groups: Vec<Option<wgpu::BindGroup>>,
-                pub vertex_buffer: Vec<Option<wgpu::Buffer>>,
-                pub index_buffer: Option<wgpu::Buffer>,
+                pub vertex_buffer: Vec<Option<(wgpu::Buffer, std::ops::Range<u64>)>>,
+                pub index_buffer: Option<(wgpu::Buffer, std::ops::Range<u64>)>,
             }
 
             impl $crate::backend::PipelineContext for [<$name PipelineContext>] {
@@ -45,11 +45,11 @@ macro_rules! define_pipeline_context {
                     &self.bind_groups
                 }
 
-                fn index_buffer(&self) -> Option<&wgpu::Buffer> {
+                fn index_buffer(&self) -> Option<&(wgpu::Buffer, std::ops::Range<u64>)> {
                     self.index_buffer.as_ref()
                 }
 
-                fn vertex_buffer(&self) -> &[Option<wgpu::Buffer>] {
+                fn vertex_buffer(&self) -> &[Option<(wgpu::Buffer, std::ops::Range<u64>)>] {
                     self.vertex_buffer.as_ref()
                 }
             }
@@ -112,9 +112,15 @@ macro_rules! pipeline_context {
                         }
                     ),*
                 ],
-                index_buffer: $ib,
+                index_buffer: {
+                    let buffer: Option<&$crate::backend::buffer::Buffer<
+                        u32,
+                        $crate::backend::buffer::Index,
+                    >> = $ib;
+                    buffer.map(|buffer| buffer.raw_region())
+                },
                 vertex_buffer: vec![
-                    $($(Some($vb)),*)?
+                    $($(Some(($vb).raw_region())),*)?
                 ],
             }
         };

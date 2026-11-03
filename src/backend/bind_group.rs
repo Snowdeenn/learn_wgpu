@@ -306,17 +306,18 @@ macro_rules! bind_group {
         $(
             let binding = layout_entries.len() as u32;
             let resource = &$resource;
+            let resolved = resource.resolve_binding();
 
             layout_entries.push(wgpu::BindGroupLayoutEntry {
                 binding,
                 visibility: $visibility,
-                ty: resource.binding_type(),
+                ty: resolved.binding_type(),
                 count: None,
             });
 
             entries.push(wgpu::BindGroupEntry {
                 binding,
-                resource: resource.binding_resource(),
+                resource: resolved.binding_resource(),
             });
         )*
 

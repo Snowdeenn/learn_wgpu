@@ -1,12 +1,11 @@
-use crate::{app::Dummy, backend::{
-    buffer::{Buffer, Index, StorageRead, Uniform},
-    mesh::{Mesh, Vertex},
-}};
+use super::instance::Dummy;
+use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
+use crate::geometry::mesh::{Mesh, Vertex};
 use math::Mat4;
 
 crate::unique_resource!(CamBuffer, Buffer<Mat4, Uniform>);
-crate::unique_resource!(InstanceBuffer, Buffer<Dummy, StorageRead>);
-crate::unique_resource!(VertexBuffer, Buffer<Vertex, StorageRead>);
+crate::unique_resource!(InstanceBuffer, Buffer<crate::backend::RenderInstance, StorageRead>);
+crate::unique_resource!(VertexBuffer, Buffer<Vertex, StorageVertex>);
 crate::unique_resource!(IndexBuffer, Buffer<u32, Index>);
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -28,3 +27,6 @@ impl std::fmt::Display for Fps {
         write!(f, "{:.0}", self.0)
     }
 }
+
+crate::define_pipeline_context!(Mesh);
+crate::define_pipeline_context!(Texture);

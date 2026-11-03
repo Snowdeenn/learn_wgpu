@@ -5,7 +5,10 @@
 //! simplify the process and fall back to a set of reasonable defaults.
 #![allow(unused)]
 
-use crate::backend::context;
+mod context;
+pub use context::*;
+
+use crate::backend::context as gpu_context;
 
 #[derive(Debug)]
 enum Layout<'a> {
@@ -488,7 +491,7 @@ impl<'a> RenderPipelineBuilder<'a> {
     /// - A rasterization state field was specified but no fragment shader was given.
     /// - A color state field was specified but no fragment shader was given.
     pub fn build(self) -> wgpu::RenderPipeline {
-        let device = context::device();
+        let device = gpu_context::device();
         match self.layout {
             Layout::Descriptor(ref desc) => {
                 let layout = device.create_pipeline_layout(desc);

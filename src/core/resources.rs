@@ -68,3 +68,24 @@ impl Resources {
         })
     }
 }
+
+#[macro_export]
+macro_rules! unique_resource {
+    ($name:ident, $ty:ty) => {
+        pub struct $name(pub $ty);
+
+        impl std::ops::Deref for $name {
+            type Target = $ty;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl std::ops::DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+    };
+}

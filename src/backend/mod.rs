@@ -1,21 +1,22 @@
-pub mod renderer;
 pub mod bind_group;
 pub mod buffer;
 pub mod context;
+pub mod pass;
+pub mod pipeline;
+pub mod renderer;
 pub mod sampler;
 pub mod texture;
-pub mod pipeline;
-pub mod pass;
-pub mod mesh;
 
-mod helper;
-pub use helper::*;
+mod shader;
+mod sprite;
 
-mod pipeline_context;
-pub use pipeline_context::*;
-
-mod draw;
-pub use draw::*;
+pub use buffer::write_buffer;
+pub use pipeline::{PipelineContext, bind};
+pub use shader::load_shader;
+pub use sprite::*;
+pub use texture::{
+    load_texture, load_texture_array, register_atlas, register_texture, register_texture_array,
+};
 
 #[macro_export]
 macro_rules! create_marker {
@@ -23,26 +24,5 @@ macro_rules! create_marker {
         $(
             pub struct $name;
         )*
-    };
-}
-
-#[macro_export]
-macro_rules! unique_resource {
-    ($name:ident, $ty:ty) => {
-        pub struct $name(pub $ty);
-
-        impl std::ops::Deref for $name {
-            type Target = $ty;
-
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
-
-        impl std::ops::DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
-            }
-        }
     };
 }

@@ -9,7 +9,6 @@ pub struct DebugManager {
     pointer_position: Option<egui::Pos2>,
 }
 
-
 impl DebugManager {
     pub fn init(window: &winit::window::Window, format: wgpu::TextureFormat) -> Self {
         let ctx = egui::Context::default();
@@ -124,23 +123,22 @@ impl DebugManager {
 
         let renderer = &mut self.renderer;
         {
-            let debug_pass = encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Debug RenderPass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: surface_view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+            let debug_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Debug RenderPass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
 
             let mut debug_pass = debug_pass.forget_lifetime();
             renderer.render(&mut debug_pass, &paint_jobs, &screen_descriptor);

@@ -41,7 +41,7 @@ impl Renderer {
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .expect("Aucune configuration de surface compatible");
         conf.present_mode = wgpu::PresentMode::Fifo;
-        conf.format = wgpu::TextureFormat::Rgba8UnormSrgb;
+        conf.format = wgpu::TextureFormat::Bgra8UnormSrgb;
         surface.configure(context::device(), &conf);
 
         Self { surface, conf }
@@ -64,9 +64,14 @@ impl Renderer {
         let surface = &self.surface;
         let conf = &self.conf;
 
-        let (frame, suboptimal) = match surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
+        let frame = match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+                // Libérer la texture acquise avant de reconfigurer la surface.
+                drop(frame);
+                surface.configure(context::device(), conf);
+                return Ok(None);
+            }
             wgpu::CurrentSurfaceTexture::Outdated => {
                 surface.configure(context::device(), conf);
                 return Ok(None);
@@ -83,10 +88,6 @@ impl Renderer {
             label: Some("Frame view"),
             ..Default::default()
         });
-
-        if suboptimal {
-            surface.configure(context::device(), conf);
-        }
 
         Ok(Some(Frame {
             window: window,

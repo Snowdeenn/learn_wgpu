@@ -1,25 +1,7 @@
+use super::{AtlasRegion, Texture, TextureBuilder, TextureResource};
+use crate::backend::{context, sampler};
 use image::GenericImageView;
 use new_collection::{Arena, Id};
-
-use crate::backend::sampler;
-use crate::backend::texture::{AtlasRegion, Texture, TextureResource};
-
-use super::texture::TextureBuilder;
-
-use super::context;
-pub fn write_buffer(buffer: &wgpu::Buffer, offset: u64, data: &[u8]) {
-    context::queue().write_buffer(buffer, offset, data);
-}
-
-pub fn load_shader(label: Option<&str>, path: &str) -> Result<wgpu::ShaderModule, std::io::Error> {
-    let source = std::fs::read_to_string(path)?;
-    let desc = wgpu::ShaderModuleDescriptor {
-        label: label,
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    };
-
-    Ok(context::device().create_shader_module(desc))
-}
 
 pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::ImageError> {
     let image = image::open(path)?;
@@ -139,7 +121,7 @@ pub fn register_texture(raw: wgpu::Texture) -> (Id<TextureResource>, wgpu::BindG
         wgpu::ShaderStages::VERTEX_FRAGMENT => tex,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler
     };
-    let resource = TextureResource::Separate(super::texture::Resource {
+    let resource = TextureResource::Separate(super::Resource {
         texture: tex,
         sampler: sampler.as_raw().clone(),
         bind_group: group,
@@ -152,7 +134,9 @@ pub fn register_texture(raw: wgpu::Texture) -> (Id<TextureResource>, wgpu::BindG
     (id, lay)
 }
 
-pub fn register_texture_array(array: Texture) -> Result<(Id<TextureResource>, wgpu::BindGroupLayout), &'static str> {
+pub fn register_texture_array(
+    array: Texture,
+) -> Result<(Id<TextureResource>, wgpu::BindGroupLayout), &'static str> {
     let dim = array.as_raw().dimension();
     if !matches!(dim, wgpu::TextureDimension::D2) || array.as_raw().depth_or_array_layers() == 1 {
         return Err("Only array texture can be use with register_texture_array()");
@@ -163,7 +147,7 @@ pub fn register_texture_array(array: Texture) -> Result<(Id<TextureResource>, wg
         wgpu::ShaderStages::VERTEX_FRAGMENT => array,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler
     };
-    let resource = super::texture::Resource {
+    let resource = super::Resource {
         texture: array,
         sampler: sampler.as_raw().clone(),
         bind_group: group,
@@ -196,7 +180,7 @@ pub fn register_atlas(
         region_ids.push(id);
     }
     let resource = TextureResource::Atlas {
-        resource: super::texture::Resource {
+        resource: super::Resource {
             texture: tex,
             sampler: sampler.as_raw().clone(),
             bind_group: group,

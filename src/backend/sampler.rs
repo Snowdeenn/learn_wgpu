@@ -152,13 +152,17 @@ impl<'a> From<wgpu::SamplerDescriptor<'static>> for SamplerBuilder<'a> {
 
 pub struct Sampler<K> {
     raw: wgpu::Sampler,
-    _phantom: std::marker::PhantomData<K>
+    _phantom: std::marker::PhantomData<K>,
 }
 
 impl<K> Sampler<K> {
-   pub fn as_raw(&self) -> &wgpu::Sampler {
-       &self.raw
-   } 
+    pub(crate) fn resolve_binding(&self) -> &Self {
+        self
+    }
+
+    pub fn as_raw(&self) -> &wgpu::Sampler {
+        &self.raw
+    }
 }
 
 impl<K: SamplingKind> Bindable for Sampler<K> {
@@ -174,27 +178,22 @@ impl<K: SamplingKind> Bindable for Sampler<K> {
 crate::create_marker!(Filtering, NonFiltering, Comparison);
 
 pub trait SamplingKind {
-   const BINDING_TYPE: wgpu::SamplerBindingType; 
+    const BINDING_TYPE: wgpu::SamplerBindingType;
 }
 
 impl SamplingKind for Filtering {
-    const BINDING_TYPE: wgpu::SamplerBindingType =
-        wgpu::SamplerBindingType::Filtering;
+    const BINDING_TYPE: wgpu::SamplerBindingType = wgpu::SamplerBindingType::Filtering;
 }
 
 impl SamplingKind for NonFiltering {
-    const BINDING_TYPE: wgpu::SamplerBindingType =
-        wgpu::SamplerBindingType::NonFiltering;
+    const BINDING_TYPE: wgpu::SamplerBindingType = wgpu::SamplerBindingType::NonFiltering;
 }
 
 impl SamplingKind for Comparison {
-    const BINDING_TYPE: wgpu::SamplerBindingType =
-        wgpu::SamplerBindingType::Comparison;
+    const BINDING_TYPE: wgpu::SamplerBindingType = wgpu::SamplerBindingType::Comparison;
 }
 
-fn create<K: SamplingKind>(
-    desc: wgpu::SamplerDescriptor<'_>,
-) -> Sampler<K> {
+fn create<K: SamplingKind>(desc: wgpu::SamplerDescriptor<'_>) -> Sampler<K> {
     Sampler {
         raw: context::device().create_sampler(&desc),
         _phantom: std::marker::PhantomData,
@@ -221,10 +220,7 @@ pub fn non_filtering(label: &str) -> Sampler<NonFiltering> {
     })
 }
 
-pub fn comparison(
-    label: &str,
-    compare: wgpu::CompareFunction,
-) -> Sampler<Comparison> {
+pub fn comparison(label: &str, compare: wgpu::CompareFunction) -> Sampler<Comparison> {
     create(wgpu::SamplerDescriptor {
         label: Some(label),
         compare: Some(compare),

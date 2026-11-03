@@ -132,12 +132,43 @@ impl Texture {
         }
     }
 
+    pub fn array(format: wgpu::TextureFormat, size: wgpu::Extent3d) -> Self {
+        let texture = TextureBuilder::new()
+            .with_size(size)
+            .with_dimension(wgpu::TextureDimension::D2)
+            .with_format(format)
+            .build();
+
+        let desc_view = wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        };
+
+        let view = texture.create_view(&desc_view);
+        let sample_type = desc_view
+            .format
+            .unwrap_or(texture.format())
+            .sample_type(Some(desc_view.aspect), None)
+            .expect("Texture view format cannot be sampled");
+
+        Texture {
+            raw: texture,
+            view,
+            view_dimension: wgpu::TextureViewDimension::D2Array,
+            sample_type,
+        }
+    }
+
     pub fn as_raw(&self) -> &wgpu::Texture {
         &self.raw
     }
 
     pub fn view(&self) -> &wgpu::TextureView {
         &self.view
+    }
+
+    pub(crate) fn resolve_binding(&self) -> &Self {
+        self
     }
 }
 
@@ -155,25 +186,7 @@ impl Bindable for Texture {
     }
 }
 
-#[derive(Debug)]
-pub enum TextureResource {
-    Separate(Resource),
-    Array(Resource),
-    Atlas {
-        resource: Resource,
-        regions: new_collection::Arena<AtlasRegion>,
-    },
-}
-
-#[derive(Debug)]
-pub struct Resource {
-    pub texture: Texture,
-    pub sampler: wgpu::Sampler,
-    pub bind_group: wgpu::BindGroup,
-}
-
-#[derive(Debug)]
-pub struct AtlasRegion {
-    pub uv_min: [f32; 2],
-    pub uv_max: [f32; 2],
-}
+mod loading;
+mod resource;
+pub use loading::*;
+pub use resource::*;

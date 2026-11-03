@@ -1,5 +1,7 @@
-use std::sync::{OnceLock, RwLock};
 use new_collection::Arena;
+use std::sync::{OnceLock, RwLock};
+
+use crate::backend::buffer::BufferArena;
 
 use super::texture::TextureResource;
 
@@ -9,8 +11,8 @@ type TextureStorage = Arena<TextureResource>;
 pub struct Context {
     pub queue: wgpu::Queue,
     pub device: wgpu::Device,
-    pub texture_storage: RwLock<TextureStorage>
-
+    pub texture_storage: RwLock<TextureStorage>,
+    pub(super) buffer: RwLock<BufferArena>,
 }
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -25,8 +27,14 @@ impl Context {
         .expect("Impossible de creer le device");
 
         let texture_storage = RwLock::new(TextureStorage::new());
+        let buffer = RwLock::new(BufferArena::new());
 
-        Context { queue, device, texture_storage }
+        Context {
+            queue,
+            device,
+            texture_storage,
+            buffer,
+        }
     }
 }
 
@@ -50,4 +58,8 @@ pub fn queue() -> &'static wgpu::Queue {
 
 pub fn texture_storage() -> &'static RwLock<TextureStorage> {
     &CONTEXT.get().expect("Context is not init").texture_storage
+}
+
+pub(super) fn buffer() -> &'static RwLock<BufferArena> {
+    &CONTEXT.get().expect("Context is not init").buffer
 }
