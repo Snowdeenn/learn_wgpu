@@ -111,7 +111,8 @@ impl ApplicationHandler for App {
 
                         frame.render(|pass| scene::render::render(&self.resources, pass));
 
-                        debug.flush_into(window, &mut frame.encoder, &frame.view);
+                        let size_in_pixels = frame.size_in_pixels();
+                        debug.flush_into(window, &mut frame.encoder, &frame.view, size_in_pixels);
 
                         frame.finish();
                     }

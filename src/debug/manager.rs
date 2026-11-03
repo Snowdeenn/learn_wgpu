@@ -89,6 +89,7 @@ impl DebugManager {
         window: &winit::window::Window,
         encoder: &mut wgpu::CommandEncoder,
         surface_view: &wgpu::TextureView,
+        size_in_pixels: [u32; 2],
     ) {
         let context = context::context();
 
@@ -107,10 +108,10 @@ impl DebugManager {
             }
         }
 
-        let size = window.inner_size();
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [size.width, size.height],
-            pixels_per_point: window.scale_factor() as f32,
+            // La fenêtre peut changer de taille après l'acquisition de la texture.
+            size_in_pixels,
+            pixels_per_point: full_output.pixels_per_point,
         };
 
         self.renderer.update_buffers(

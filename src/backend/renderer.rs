@@ -106,6 +106,11 @@ pub struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
+    pub(crate) fn size_in_pixels(&self) -> [u32; 2] {
+        let size = self.texture_surface.texture.size();
+        [size.width, size.height]
+    }
+
     pub fn render(&mut self, draw: impl FnOnce(&mut wgpu::RenderPass<'_>)) {
         let mut pass = RenderPassBuilder::new()
             .with_label("Test Pass")
