@@ -130,6 +130,7 @@ impl<'a> Frame<'a> {
 
     pub fn finish(self) {
         context::queue().submit([self.encoder.finish()]);
+        super::sprite::submitted();
         self.window.pre_present_notify();
         context::queue().present(self.texture_surface);
     }

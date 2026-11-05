@@ -1,4 +1,4 @@
-use crate::backend;
+use crate::backend::{self, Sprite};
 
 pub struct Dummy {
     pub color: [f32; 4],
@@ -9,10 +9,19 @@ pub struct Dummy {
 
 impl backend::SpriteInstance for Dummy {
     fn render_instance(&self) -> backend::RenderInstance {
+        let layer = match &self.sprite {
+            Sprite::Array { layer, .. } => *layer,
+            Sprite::Animated { current_layer, .. } => *current_layer,
+            _ => 0,
+        };
         backend::RenderInstance {
             color: self.color,
             offset: self.offset,
             scale: self.scale,
+            layer,
+            _padding: [0; 3],
+            uv_min: [0.0; 2],
+            uv_max: [1.0; 2],
         }
     }
 
