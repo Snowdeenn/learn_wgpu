@@ -97,16 +97,12 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                     }
 
                     if changed {
-                        // let buffer = rs.read_resource::<InstanceBuffer>();
-                        // let render_instances: Vec<_> = instances
-                        //     .iter()
-                        //     .map(backend::SpriteInstance::render_instance)
-                        //     .collect();
-                        // backend::write_buffer(
-                        //     &**buffer,
-                        //     0,
-                        //     &render_instances,
-                        // );
+                        let buffer = rs.read_resource::<InstanceBuffer>();
+                        let render_instances: Vec<_> = instances
+                            .iter()
+                            .map(backend::SpriteInstance::render_instance)
+                            .collect();
+                        backend::write_buffer(&**buffer, 0, &render_instances);
                     }
                 });
         });

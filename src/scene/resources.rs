@@ -30,3 +30,4 @@ impl std::fmt::Display for Fps {
 
 crate::define_pipeline_context!(Mesh);
 crate::define_pipeline_context!(Texture);
+crate::define_pipeline_context!(TextureArray);

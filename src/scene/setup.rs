@@ -1,3 +1,5 @@
+use std::vec;
+
 use super::{instance::Dummy, resources::*};
 use crate::{
     backend::{self, buffer},
@@ -12,6 +14,9 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     let mesh_shader =
         backend::load_shader(Some("Mesh Shader"), "assets/shaders/mesh.wgsl").unwrap();
 
+    let tex_array_shader =
+        backend::load_shader(Some("Texture array"), "assets/shaders/texture_array.wgsl").unwrap();
+
     let rand = |min: f32, max: f32| rand::random_range(min..max);
 
     let mut instance_data = Vec::new();
@@ -21,6 +26,43 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
 
     let (id_a, lay_a) = backend::register_texture(texture_a);
     let (id_b, _) = backend::register_texture(texture_b);
+
+    let path = vec![
+        "assets/textures/idle/IDLE0.png",
+        "assets/textures/idle/IDLE1.png",
+        "assets/textures/idle/IDLE2.png",
+        "assets/textures/idle/IDLE3.png",
+        "assets/textures/idle/IDLE4.png",
+        "assets/textures/idle/IDLE5.png",
+        "assets/textures/idle/IDLE6.png",
+    ];
+    let texture_array = backend::load_texture_array("text array", &path).unwrap();
+    let (id_tex_array_a, tex_array_lay_a) = backend::register_texture_array(texture_array).unwrap();
+
+    let path_b = vec![
+        "assets/textures/run/RUN0.png",
+        "assets/textures/run/RUN1.png",
+        "assets/textures/run/RUN2.png",
+        "assets/textures/run/RUN3.png",
+        "assets/textures/run/RUN4.png",
+        "assets/textures/run/RUN5.png",
+        "assets/textures/run/RUN6.png",
+        "assets/textures/run/RUN7.png",
+    ];
+
+    let tex_array_b = backend::load_texture_array("Run", &path_b).unwrap();
+    let (id_tex_array_b, _) = backend::register_texture_array(tex_array_b).unwrap();
+
+    let path_c = vec![
+        "assets/textures/attack/ATTACK2_0.png",
+        "assets/textures/attack/ATTACK2_1.png",
+        "assets/textures/attack/ATTACK2_2.png",
+        "assets/textures/attack/ATTACK2_3.png",
+        "assets/textures/attack/ATTACK2_4.png",
+    ];
+
+    let tex_array_c = backend::load_texture_array("Attack", &path_c).unwrap();
+    let (id_tex_array_c, _) = backend::register_texture_array(tex_array_c).unwrap();
 
     let (rect_mesh, _) = create_rect_vertices();
     let (circle_mesh, _) = create_circle_vertices(CircleOptions::default());
@@ -48,16 +90,89 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     };
     instance_data.push(inst_2);
 
+    let inst_3 = Dummy {
+        color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
+        scale: [100.0, 100.0],
+        offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
+        sprite: backend::Sprite::Animated {
+            texture: id_tex_array_a,
+            layers: 0..7,
+            current_layer: 0,
+            elapsed: 0.0,
+            indices: 0..rect_mesh.indices().len() as u32,
+        },
+    };
+    instance_data.push(inst_3);
+
+    let inst_4 = Dummy {
+        color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
+        scale: [100.0, 100.0],
+        offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
+        sprite: backend::Sprite::Animated {
+            texture: id_tex_array_b,
+            layers: 0..8,
+            current_layer: 0,
+            elapsed: 0.0,
+            indices: 0..rect_mesh.indices().len() as u32,
+        },
+    };
+    instance_data.push(inst_4);
+
+    let inst_5 = Dummy {
+        color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
+        scale: [100.0, 100.0],
+        offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
+        sprite: backend::Sprite::Animated {
+            texture: id_tex_array_c,
+            layers: 0..5,
+            current_layer: 0,
+            elapsed: 0.0,
+            indices: 0..rect_mesh.indices().len() as u32,
+        },
+    };
+    instance_data.push(inst_5);
+
+    let atlas = backend::load_texture("Atlas player", "assets/textures/spritesheet.png").unwrap();
+    let regions = backend::build_atlas_region(
+        "assets/textures/sprites.json",
+        [atlas.width(), atlas.height()],
+    )
+    .unwrap();
+
+    let (id_atlas, ids_regions) = backend::register_atlas(atlas, regions);
+
+    let inst_6 = Dummy {
+        color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
+        scale: [100.0, 100.0],
+        offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
+        sprite: backend::Sprite::Atlas {
+            texture: id_atlas,
+            region: ids_regions[0],
+            indices: 0..rect_mesh.indices().len() as u32,
+        },
+    };
+    instance_data.push(inst_6);
+
     let instance_buffer = buffer::storage::<backend::RenderInstance>(instance_data.len() as u64)
         .expect("Impossible d'allouer le buffer d'instances");
 
-    let vertex_buffer = buffer::storage_vertex::<Vertex>(50)
-        .expect("Impossible d'allouer le buffer de sommets");
-    let index_buffer = buffer::index::<u32>(144)
-        .expect("Impossible d'allouer le buffer d'indices");
+    let vertex_buffer =
+        buffer::storage_vertex::<Vertex>(50).expect("Impossible d'allouer le buffer de sommets");
+    let index_buffer = buffer::index::<u32>(144).expect("Impossible d'allouer le buffer d'indices");
 
-    let cam_buff = buffer::uniform::<math::Mat4>(1)
-        .expect("Impossible d'allouer le buffer de caméra");
+    let render_instances: Vec<_> = instance_data
+        .iter()
+        .map(backend::SpriteInstance::render_instance)
+        .collect();
+
+    backend::write_buffer(&instance_buffer, 0, &render_instances);
+    backend::write_buffer(&vertex_buffer, 0, rect_mesh.vertices());
+    backend::write_buffer(&index_buffer, 0, rect_mesh.indices());
+
+    let index_count = rect_mesh.indices().len() as u32;
+
+    let cam_buff =
+        buffer::uniform::<math::Mat4>(1).expect("Impossible d'allouer le buffer de caméra");
 
     let (mesh_layout, mesh_group) = crate::bind_group! {
        wgpu::ShaderStages::VERTEX => vertex_buffer,
@@ -87,6 +202,21 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
         }
     };
 
+    let tex_array_pipe_ctx = crate::pipeline_context! {
+        TextureArray {
+            shader: &tex_array_shader,
+            format: format,
+            fragment: "fs_main",
+            bind_group: [
+                (instance_lay,),
+                (cam_layout, cam_group.clone()),
+                (tex_array_lay_a,)
+            ],
+            vertex_buffer: [(Vertex::layout(), &vertex_buffer)],
+            index_buffer: Some(&index_buffer),
+        }
+    };
+
     let mesh_pipe_ctx = crate::pipeline_context! {
         Mesh {
             shader: &mesh_shader,
@@ -108,10 +238,11 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     resources.insert(ScenePipeline::default());
     resources.insert(texture_pipe_ctx);
     resources.insert(mesh_pipe_ctx);
+    resources.insert(tex_array_pipe_ctx);
     resources.insert(CamBuffer(cam_buff));
     resources.insert(cam);
     resources.insert(InstanceData(instance_data));
-    resources.insert(IndexCount(0));
+    resources.insert(IndexCount(index_count));
     resources.insert(RectMesh(rect_mesh));
     resources.insert(CircleMesh(circle_mesh));
     resources.insert(TriangleMesh(triangle_mesh));

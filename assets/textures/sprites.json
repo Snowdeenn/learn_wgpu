@@ -1,0 +1,58 @@
+[
+    {
+        "name": "player_idle000",
+        "x": 0,
+        "y": 0,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle001",
+        "x": 0,
+        "y": 65,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle002",
+        "x": 65,
+        "y": 0,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle004",
+        "x": 65,
+        "y": 65,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle005",
+        "x": 0,
+        "y": 130,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle006",
+        "x": 65,
+        "y": 130,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle008",
+        "x": 130,
+        "y": 0,
+        "width": 64,
+        "height": 64
+    },
+    {
+        "name": "player_idle009",
+        "x": 130,
+        "y": 65,
+        "width": 64,
+        "height": 64
+    }
+]

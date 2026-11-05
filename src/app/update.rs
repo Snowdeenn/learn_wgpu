@@ -1,10 +1,12 @@
 use super::App;
 use crate::{
-    backend,
+    backend::{self},
     camera::Camera2D,
-    scene::resources::{CamBuffer, Fps},
+    scene::resources::{CamBuffer, Fps, InstanceData},
 };
 use std::time::Instant;
+
+const ANIMATION_FPS: f32 = 8.0;
 
 impl App {
     pub(super) fn update(&mut self) {
@@ -20,8 +22,11 @@ impl App {
             .min(0.1);
 
         {
-            let fps = 1.0 / dt;
+            let fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
             self.resources.write_resource::<Fps>().0 = fps;
+
+            let mut instances = self.resources.write_resource::<InstanceData>();
+            backend::run_animated(&mut *instances, dt);
         }
 
         {
