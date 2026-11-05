@@ -90,8 +90,11 @@ Remarque: Api descriptive pas définitive.
 
 	La fonction :
 
-	Résout les ressources depuis l’arena du contexte global, accessible implicitement. Prépare les données GPU. Regroupe les instances consécutives compatibles en 	batches. Conserve l’ordre du tableau pour respecter les superpositions et la transparence. Retourne les batches sans effectuer de draw call. Le verrou de l’arena est 	conservé uniquement le temps de récupérer les ressources et de cloner les handles nécessaires. Il est relâché avant la préparation GPU et le dessin.
-	Un batch partage le même pipeline, les mêmes états de rendu et la même ressource de texture. Les couches d’une même texture array ou les régions d’un même atlas 	peuvent varier dans un batch.
+	Résout les ressources depuis l’arena du contexte global, accessible implicitement. Prépare les données GPU. 
+	Regroupe les instances consécutives compatibles en 	batches. Conserve l’ordre du tableau pour respecter les superpositions et la transparence. 
+	Retourne les batches sans effectuer de draw call. Le verrou de l’arena est 	conservé uniquement le temps de récupérer les ressources et de cloner les handles nécessaires. Il est relâché avant la préparation GPU et le dessin.
+	Un batch partage le même pipeline, les mêmes états de rendu et la même ressource de texture. Les couches d’une même texture array ou les régions d’un même atlas 	
+	peuvent varier dans un batch.
 
 draw(batch, pass) :
 
