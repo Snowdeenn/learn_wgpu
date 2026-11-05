@@ -1,0 +1,21 @@
+-- Optimisation / Amélioration --
+
+. Ne plus hard coder les binds group dans draw_all(). FAIT.
+
+. Préparer les RenderInstance en amont de la boucle de dessin pour éviter une allocation gpu par instance. FAIT.
+
+. Eliminer la création d'un buffer à chaque appels de draw_all(). FAIT.
+
+. Mettre en place un State Global qui sauvegarde l'état des instances de rendu ? (pour les préparer en amont
+	et les récupérer dans pour le dessin.
+). PAS BESOIN.
+
+. Ne pas rebinder le context de la pipeline quand la texture est compatible.
+
+. Chaque batch réserve un buffer dimensionné sur range.end. Un batch 9000..9010 réserve de la place pour au moins 9010 instances, alors qu’il n’en utilise que dix. 
+  Avec beaucoup de batches, les espaces inutilisés s’accumulent.
+
+. Le batching trie les instances par texture. Ça réduit les changements de ressources, mais modifie les superpositions des sprites transparents. 
+  Si l’ordre du tableau doit être respecté, regroupe uniquement les instances consécutives compatibles.
+
+. Respect de l'ordre de superposition des sprites transparents pendant le batching.

@@ -1,0 +1,15 @@
+-- Particle System --
+
+. Design visé -> Système modulaire (émétteur, + module) avec double moteur GPU et CPU.
+
+-- Resource de recherche --
+
+. https://www.cppstories.com/p/start-here/#flexible-particle-system
+
+. https://dev.epicgames.com/documentation/unreal-engine/overview-of-niagara-effects-for-unreal-engine
+
+. https://docs.unity.cn/Packages/com.unity.visualeffectgraph%407.6/manual/GraphLogicAndPhilosophy.html
+
+. https://github.com/djeedai/bevy_hanabi
+
+. https://wickedengine.net/category/devblog/2017/11/07/gpu-based-particle-simulation/index.html
