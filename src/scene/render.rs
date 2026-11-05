@@ -1,5 +1,8 @@
 use super::resources::*;
-use crate::{backend::{self, Sprite}, core::Resources};
+use crate::{
+    backend::{self, Sprite},
+    core::Resources,
+};
 
 pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
     let index_count = resources.read_resource::<IndexCount>();
@@ -15,28 +18,21 @@ pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
         }
         ScenePipeline::Texture => {
             let ctx = resources.read_resource::<TexturePipelineContext>();
-            backend::bind(&*ctx, pass);
-
-            let mut instances = resources.write_resource::<InstanceData>();
-            let count = 0..instances.len() as u32;
-            for i in count.clone() {
-                if matches!(instances[i as usize].sprite, Sprite::Separate { .. }) {
-                    backend::draw_all(&mut *instances, i..i + 1, pass);
-                }
-                if matches!(instances[i as usize].sprite, Sprite::Atlas { .. }) {
-                    backend::draw_all(&mut instances, i..i + 1, pass);
-                }
-            }
-
             let array_ctx = resources.read_resource::<TextureArrayPipelineContext>();
-            backend::bind(&*array_ctx, pass);
-            for i in count {
-                if matches!(instances[i as usize].sprite, Sprite::Array { .. }) {
-                    backend::draw_all(&mut *instances, i..i + 1, pass);
+            let mut instances = resources.write_resource::<InstanceData>();
+            let end = instances.len() as u32;
+            let batches = backend::batch(&mut instances, 0..end);
+
+            for batch in batches {
+                match &instances[batch.range.start as usize].sprite {
+                    Sprite::Separate { .. } | Sprite::Atlas { .. } => {
+                        backend::bind(&*ctx, pass);
+                    }
+                    Sprite::Array { .. } | Sprite::Animated { .. } => {
+                        backend::bind(&*array_ctx, pass);
+                    }
                 }
-                if matches!(instances[i as usize].sprite, Sprite::Animated { .. }) {
-                    backend::draw_all(&mut instances, i..i + 1, pass);
-                }
+                backend::draw(&mut instances, &batch, pass);
             }
         }
     }

@@ -1,9 +1,51 @@
 use new_collection::Id;
 
 use super::{Batch, Sprite, SpriteInstance};
-use crate::backend::{context, texture::TextureResource};
+use crate::backend::{self, context, texture::TextureResource};
 
-pub fn draw(batches: &Batch, pass: &mut wgpu::RenderPass<'_>) {}
+fn get_bind_group<T: SpriteInstance>(
+    texture: Id<TextureResource>,
+    inst: &T,
+) -> Option<wgpu::BindGroup> {
+    let storage = context::texture_storage().read().unwrap();
+    let Some(resource) = storage.get(texture) else {
+        tracing::error!("Unknown texture {:?}", texture);
+        return None;
+    };
+    let resource = match (inst.sprite(), resource) {
+        (Sprite::Separate { .. }, TextureResource::Separate(resource))
+        | (Sprite::Array { .. } | Sprite::Animated { .. }, TextureResource::Array(resource))
+        | (Sprite::Atlas { .. }, TextureResource::Atlas { resource, .. }) => resource,
+        _ => {
+            tracing::error!("Texture resource does not match sprite {:?}", inst.sprite());
+            return None;
+        }
+    };
+    Some(resource.bind_group.clone())
+}
+
+pub fn draw<T: SpriteInstance>(
+    instances: &mut [T],
+    batch: &Batch,
+    pass: &mut wgpu::RenderPass<'_>,
+) {
+    if batch.range.is_empty() {
+        return;
+    }
+    assert!(
+        batch.range.end as usize <= instances.len(),
+        "Instance range out of bounds"
+    );
+    let inst = &instances[batch.range.start as usize];
+    let Some(texture_bind_group) = get_bind_group(batch.resource, inst) else {
+        return;
+    };
+    let instance_buffer_group = prepare_instance(instances, batch.range.clone());
+
+    pass.set_bind_group(0, &instance_buffer_group, &[]);
+    pass.set_bind_group(2, &texture_bind_group, &[]);
+    pass.draw_indexed(batch.indices.clone(), 0, batch.range.clone());
+}
 
 fn prepare_instance<T: SpriteInstance>(
     instances: &mut [T],
@@ -14,50 +56,12 @@ fn prepare_instance<T: SpriteInstance>(
 
 pub fn draw_all<T: SpriteInstance>(
     instances: &mut [T],
-    range: std::ops::Range<u32>,
     pass: &mut wgpu::RenderPass<'_>,
 ) {
-    if range.is_empty() {
-        return;
-    }
-    assert!(
-        range.end as usize <= instances.len(),
-        "Instance range out of bounds"
-    );
-    let group = prepare_instance(instances, range.clone());
+    let end = instances.len() as u32;
+    let batches = backend::batch(instances, 0..end);
 
-    let get_bind_group = |texture: Id<TextureResource>, inst: &T| -> Option<wgpu::BindGroup> {
-        let storage = context::texture_storage().read().unwrap();
-        let Some(resource) = storage.get(texture) else {
-            tracing::error!("Unknown texture {:?}", texture);
-            return None;
-        };
-        let resource = match (inst.sprite(), resource) {
-            (Sprite::Separate { .. }, TextureResource::Separate(resource))
-            | (Sprite::Array { .. } | Sprite::Animated { .. }, TextureResource::Array(resource))
-            | (Sprite::Atlas { .. }, TextureResource::Atlas { resource, .. }) => resource,
-            _ => {
-                tracing::error!("Texture resource does not match sprite {:?}", inst.sprite());
-                return None;
-            }
-        };
-        Some(resource.bind_group.clone())
-    };
-
-    for inst_idx in range {
-        let inst = &instances[inst_idx as usize];
-        let (texture, indices) = match inst.sprite() {
-            Sprite::Separate { texture, indices }
-            | Sprite::Array { texture, indices, .. }
-            | Sprite::Atlas { texture, indices, .. }
-            | Sprite::Animated { texture, indices, .. } => (*texture, indices),
-        };
-        let Some(bind_group) = get_bind_group(texture, inst) else {
-            continue;
-        };
-
-        pass.set_bind_group(0, &group, &[]);
-        pass.set_bind_group(2, &bind_group, &[]);
-        pass.draw_indexed(indices.clone(), 0, inst_idx..inst_idx + 1);
+    for batch in batches {
+        draw(instances, &batch, pass);
     }
 }
