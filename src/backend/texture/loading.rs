@@ -3,6 +3,52 @@ use crate::backend::{context, sampler};
 use image::GenericImageView;
 use new_collection::{Arena, Id};
 
+#[derive(serde::Deserialize)]
+struct SpriteRect {
+    name: String,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+pub fn build_atlas_region(
+    path: impl AsRef<std::path::Path>,
+    atlas_size: [u32; 2],
+) -> Result<Vec<AtlasRegion>, Box<dyn std::error::Error>> {
+    let [width, height] = atlas_size;
+    if width == 0 || height == 0 {
+        return Err("Atlas dimensions must be nonzero".into());
+    }
+
+    let json = std::fs::read_to_string(path)?;
+    let sprites: Vec<SpriteRect> = serde_json::from_str(&json)?;
+    sprites
+        .into_iter()
+        .map(|sprite| {
+            let right = sprite.x.checked_add(sprite.width);
+            let bottom = sprite.y.checked_add(sprite.height);
+            match (right, bottom) {
+                (Some(right), Some(bottom))
+                    if sprite.width > 0
+                        && sprite.height > 0
+                        && right <= width
+                        && bottom <= height =>
+                {
+                    Ok(AtlasRegion {
+                        uv_min: [
+                            sprite.x as f32 / width as f32,
+                            sprite.y as f32 / height as f32,
+                        ],
+                        uv_max: [right as f32 / width as f32, bottom as f32 / height as f32],
+                    })
+                }
+                _ => Err(format!("Invalid atlas rectangle for sprite '{}'", sprite.name).into()),
+            }
+        })
+        .collect()
+}
+
 pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::ImageError> {
     let image = image::open(path)?;
     let rgba_image = image.to_rgba8();
@@ -142,7 +188,7 @@ pub fn register_texture_array(
         return Err("Only array texture can be use with register_texture_array()");
     }
 
-    let sampler = sampler::filtering("");
+    let sampler = sampler::pixel_art("Array Sampler");
     let (lay, group) = crate::bind_group! {
         wgpu::ShaderStages::VERTEX_FRAGMENT => array,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler
@@ -166,7 +212,7 @@ pub fn register_atlas(
     regions: Vec<AtlasRegion>,
 ) -> (Id<TextureResource>, Vec<Id<AtlasRegion>>) {
     let tex = Texture::from_raw(atlas);
-    let sampler = sampler::filtering("");
+    let sampler = sampler::pixel_art("Atlas sampler");
     let (_, group) = crate::bind_group! {
         wgpu::ShaderStages::VERTEX_FRAGMENT => tex,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler

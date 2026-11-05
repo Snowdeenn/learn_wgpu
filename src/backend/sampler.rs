@@ -230,3 +230,13 @@ pub fn comparison(label: &str, compare: wgpu::CompareFunction) -> Sampler<Compar
         ..Default::default()
     })
 }
+
+pub fn pixel_art(label: &str) -> Sampler<Filtering> {
+    create(wgpu::SamplerDescriptor {
+        label: Some(label),
+        mag_filter: wgpu::FilterMode::Nearest,
+        min_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+        ..SamplerBuilder::DEFAULT_DESCRIPTOR
+    })
+}

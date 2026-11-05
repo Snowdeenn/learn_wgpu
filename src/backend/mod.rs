@@ -15,7 +15,7 @@ pub use pipeline::{PipelineContext, bind};
 pub use shader::load_shader;
 pub use sprite::*;
 pub use texture::{
-    load_texture, load_texture_array, register_atlas, register_texture, register_texture_array,
+    build_atlas_region, load_texture, load_texture_array, register_atlas, register_texture, register_texture_array,
 };
 
 #[macro_export]
