@@ -2,6 +2,76 @@
 
 . Design visé -> Système modulaire (émétteur, + module) avec double moteur GPU et CPU.
 
+-- Définitions --
+
+. On part sur un design orienté SOA une particle est un indices dans les arrays. 
+
+. Séparation de la description et de l'instance de l'effet de particule.
+
+. Array de données contenu dans une struct qui est possédé dans la description ou l'instance (plus l'instance pour l'instant) ?.
+
+. Emitter -> Responsable du spawn des particules. Définit le nombre de particules à spawn et à quel féquence d'émission.
+
+. Module -> Opérations qui modifient le comportement des particules générés par l'emitter (agit sur les params).
+        -> Porte des réglages qui s'applique sur les données des instances.
+
+-- Idées --
+
+. Pour les variables des particules il pourrait être configurable via un mask ?
+
+-- Emitter --
+
+. Doit pouvoir contrôler le débit, le timing d'émission, les params de diffusions, direction, spawn -> dans le volume ou sur la surface.
+
+. Séparation entre les settings de l'emitter et la struct d'exécution (EmitterInstance ?).
+
+. L'emitter définit la zone d'émission, params d'émission, Paramètres initiaux, via des générateurs (les modules qui agissent sur l'init).
+
+. Zone d'émission -> Forme géométrique qui définit la zone d'apparation des particules (intérieur ou exterieur de la zone).
+
+. Params d'émission -> Nombre de particules a spawn(count), temps de spawn de "count" particule(spawn_duration), période de pause entre les spawn_duration,
+  nombre de cycle que doit faire l'emitter(chaque cycle dure period).
+  period = spawn_duration + un temps d'attente avant de commencer un autre cycle.
+
+  count => le nombre de particule a spawn lors de spawn_duration.
+
+. L'émitter instance conserve l'état sur le runtime, numéro du cycle en cours ou alors compteur qui décrémente pour check plus facilement la fin de l'emitter.
+  le nombre de particules émisent durant le cycle (compteur qui s'incrémente), il accumule aussi un champs par le dt. 
+
+
+-- Design Emitter --
+
+struct EmitterSettings {
+        count: u32,
+        spawn_duration: f32,
+        cycles: u32,
+        period: f32 ? (à voir vu qu'il peut être calculer mais si on le calcul il faut avoir le temps de pause)
+}
+
+. Construction: Constructeur qui applique des paramètres par défaut dans le but de représenté 3 modes d'émission (burst, continuous, once).
+. (Il faut voir pour les params par défauts et aussi pour voir comment interprété c'est valeurs).
+. Champs privé immuable ?.
+
+Est ce qu'il faut stocker un état du style active sur l'instance ? ou les Settings ? et aussi emit_on_start (vu de hanabi) ?.
+
+struct EmitterInstance {
+        settings: EmitterSettings,
+        elapsed_cycle_time: f32,
+        remaining_cycle: u32,
+        spawned_particle: u32,
+}
+
+. Construction normal.
+. Une méthode qui fait avancer l'état de l'instance.
+
+Remarque : Api pas definitive peut être vouer à changer.
+
+-- Modules --
+
+. Les modules sont séparer en 3 catégories Init Update et Render. Ils intervinent tous dans un moment différent de la vie d'une particule.
+
+
+
 -- Resource de recherche --
 
 . https://www.cppstories.com/p/start-here/#flexible-particle-system
