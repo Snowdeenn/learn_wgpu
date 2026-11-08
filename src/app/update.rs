@@ -26,7 +26,7 @@ impl App {
             self.resources.write_resource::<Fps>().0 = fps;
 
             let mut instances = self.resources.write_resource::<InstanceData>();
-            backend::run_animated(&mut *instances, dt);
+            backend::sprite::run_animated(&mut *instances, dt);
         }
 
         {

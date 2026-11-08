@@ -8,15 +8,16 @@ pub mod sampler;
 pub mod texture;
 
 mod shader;
-mod sprite;
+pub mod sprite;
 
 pub use buffer::write_buffer;
 pub use pipeline::{PipelineContext, bind};
 pub use shader::load_shader;
-pub use sprite::*;
+pub use sprite::{batch, draw, draw_all, Sprite, SpriteInstance, RenderInstance};
 pub use texture::{
     build_atlas_region, load_texture, load_texture_array, register_atlas, register_texture, register_texture_array,
 };
+
 
 #[macro_export]
 macro_rules! create_marker {
