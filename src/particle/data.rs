@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use super::modules::ParticleMask;
 
 pub struct ParticleData {
@@ -54,13 +56,18 @@ macro_rules! particle_view {
         }
 
         impl<'a> ParticleView<'a> {
-            pub fn from_masks(data: &'a mut ParticleData, read: u32, write: u32) -> Self {
+            pub fn from_masks(
+                data: &'a mut ParticleData,
+                range: Range<usize>,
+                read: u32,
+                write: u32,
+            ) -> Self {
                 Self {
                     $(
                         $field: if write & $bit != 0 {
-                            Some(Access::Write(data.$field.as_mut_slice()))
+                            Some(Access::Write(&mut data.$field[range.clone()]))
                         } else if read & $bit != 0 {
-                            Some(Access::Read(data.$field.as_slice()))
+                            Some(Access::Read(&data.$field[range.clone()]))
                         } else {
                             None
                         },
@@ -83,7 +90,7 @@ particle_view! {
 
 #[macro_export]
 macro_rules! make_particle_view {
-    ($data:expr, $r_mask:expr, $w_mask:expr) => {
-        ParticleView::from_masks($data, $r_mask, $w_mask)
+    ($data:expr, $range:expr, $read:expr, $write:expr $(,)?) => {
+        $crate::particle::data::ParticleView::from_masks($data, $range, $read, $write)
     };
 }
