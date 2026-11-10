@@ -11,18 +11,18 @@ pub mod scale;
 pub mod velocity;
 pub mod render;
 
-pub trait InitModule {
+pub trait InitModule: Send + Sync {
     fn write_mask(&self) -> u32;
     fn init(&self, view: ParticleView<'_>);
 }
 
-pub trait UpdateModule {
+pub trait UpdateModule: Send + Sync {
     fn read_mask(&self) -> u32;
     fn write_mask(&self) -> u32;
     fn update(&self, view: ParticleView<'_>, dt: f32);
 }
 
-pub trait RenderModule {
+pub trait RenderModule: Send + Sync {
     fn read_mask(&self) -> u32;
     fn prepare(&self, view: ParticleView<'_>, output: &mut Vec<ParticleSpriteInstance>);
 }
