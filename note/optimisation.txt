@@ -19,3 +19,5 @@
   Si l’ordre du tableau doit être respecté, regroupe uniquement les instances consécutives compatibles.
 
 . Respect de l'ordre de superposition des sprites transparents pendant le batching.
+
+. Migrer tout les conteneurs statique vers des structures Lock Free.

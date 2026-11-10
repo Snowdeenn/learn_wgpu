@@ -230,8 +230,6 @@ pub trait RenderModule {
 
 . Possède des données par défaut du genre (pos, velocity, color, lifetime, curr_life,... (a voir pour d'autre)).
 
-.
-
 -- Resource de recherche --
 
 . https://www.cppstories.com/p/start-here/#flexible-particle-system
