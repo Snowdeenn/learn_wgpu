@@ -70,7 +70,167 @@ Remarque : Api pas definitive peut être vouer à changer.
 
 . Les modules sont séparer en 3 catégories Init Update et Render. Ils intervinent tous dans un moment différent de la vie d'une particule.
 
+. Trait pour chaque type de module => 3 trait InitModule, UpdateModule, RenderModule.
+  Est ce que un module peut être de plusieurs type différent ? (cela permettrait d'utiliser un module pour plusieurs étape)
 
+
+-- Design UpdateModule --
+
+. La description de l'effet contient une liste ordonnée de modules Update
+  (Vec<Box<dyn UpdateModule>>). La personne qui compose l'effet choisit l'ordre.
+  La liste peut mélanger des modules fournis par le moteur et des modules custom.
+
+. Un module Update est une transformation appliquée en un appel aux particules
+  de l'effet. Sa struct porte ses réglages. Elle ne conserve pas d'état qui
+  évolue entre deux appels. Les tableaux de particules appartiennent à
+  l'instance de l'effet.
+
+. Chaque type de module déclare deux masques u32, read et write. Le même bit
+  désigne le même tableau dans les deux masques. Read donne un accès en lecture
+  seule et write un accès en lecture et en écriture. Si un bit figure dans les
+  deux, write prévaut. Les réglages du module ne changent pas ses masques.
+
+pub trait UpdateModule {
+    fn read_mask(&self) -> u32;
+    fn write_mask(&self) -> u32;
+    fn update(&self, particles: ParticleView<'_>, dt: f32);
+}
+
+. ParticleView<'a> est le type de vue commun. Il a un champ optionnel par
+  tableau connu, de type Option<Access<'a, T>>. Le type de la vue est défini
+  en amont. Les champs présents sont déterminés à l'exécution.
+
+enum Access<'a, T> {
+    Read(&'a [T]),
+    Write(&'a mut [T]),
+}
+
+. Un champ absent des deux masques vaut None. Un champ demandé contient une
+  tranche empruntée du tableau de l'instance. La vue n'alloue et ne copie
+  aucun tableau.
+
+. À chaque mise à jour, le moteur parcourt les modules dans l'ordre de la
+  description. Pour chaque module, il lit ses deux masques et appelle
+  make_particle_view! pour construire la vue à partir des tableaux de
+  l'instance. Il passe ensuite la vue et le dt à update. Tous les modules
+  reçoivent le même dt pour cette mise à jour. L'emprunt se termine après
+  l'appel et le module suivant voit les données déjà modifiées.
+
+. La construction de la vue est interne au moteur. Pour ajouter un module
+  custom, on définit sa struct et on implémente UpdateModule à la main.
+
+
+-- Design InitModule --
+
+. Un module Init initialise un seul tableau. Ses réglages, par exemple les
+  bornes min et max, sont stockés dans sa struct. Son masque d'écriture
+  indique le tableau qu'il initialise et reste fixe pour son type.
+
+pub trait InitModule {
+    fn write_mask(&self) -> u32;
+    fn init(&self, view: ParticleView<'_>);
+}
+
+. Les bits des tableaux sont regroupés dans une struct sans champs.
+  Les constantes associées sont partagées par InitModule, UpdateModule et
+  la construction de ParticleView. Chaque tableau a un bit distinct.
+
+pub struct ParticleMask;
+
+impl ParticleMask {
+    pub const LIFETIME: u32 = 1 << 0;
+    pub const VELOCITY: u32 = 1 << 1;
+}
+
+. Le helper sample_uniform(min: f32, max: f32) -> f32 tire une valeur
+  uniformément entre les deux bornes. Le module l'appelle une fois par
+  particule pour obtenir un tirage par élément de la tranche.
+
+struct RandomLifetime {
+    min: f32,
+    max: f32,
+}
+
+impl InitModule for RandomLifetime {
+    fn write_mask(&self) -> u32 {
+        ParticleMask::LIFETIME
+    }
+
+    fn init(&self, view: ParticleView<'_>) {
+        let Some(Access::Write(lifetimes)) = view.lifetime else {
+            unreachable!("Le moteur doit fournir lifetime en écriture");
+        };
+
+        for lifetime in lifetimes {
+            *lifetime = sample_uniform(self.min, self.max);
+        }
+    }
+}
+
+. En mode once, l'instance crée les tableaux à la taille demandée par la
+  description. Elle exécute les modules Init dans l'ordre de la description.
+  Pour chaque module, elle construit la vue avec un masque de lecture nul
+  et le masque d'écriture du module, puis appelle init.
+
+for module in &self.description.init_modules {
+    let view = make_particle_view!(&mut self.particles, 0, module.write_mask());
+    module.init(view);
+}
+
+. Chaque module initialise toute la tranche reçue. Pour une émission par
+  lots, l'instance pourra utiliser la plage des nouvelles particules pour
+  construire des sous-tranches. La plage reste côté instance et le contrat
+  de ParticleView et d'InitModule reste le même.
+
+
+-- Design RenderModule --
+
+. Pour le rendu de sprites, un module Render lit les tableaux de particules
+  et ajoute une instance CPU par particule vivante à la liste fournie par
+  le moteur. Celui-ci vide et réutilise la liste à chaque préparation.
+
+pub trait RenderModule {
+    fn read_mask(&self) -> u32;
+
+    fn prepare(
+        &self,
+        particles: ParticleView<'_>,
+        output: &mut Vec<ParticleSpriteInstance>,
+    );
+}
+
+. Le module de rendu sprite déclare POSITION | COLOR | SCALE | SPRITE_ID |
+  AGE dans son masque de lecture, avec les bits définis dans ParticleMask.
+  Le moteur construit la ParticleView via make_particle_view! avec un
+  masque d'écriture nul.
+
+. Chaque particule a un sprite_id choisi à l'initialisation et gardé
+  pendant sa vie. Cet identifiant désigne un Sprite dans le catalogue
+  partagé de l'effet. Les particules qui partagent un sprite animé peuvent
+  afficher des couches différentes du même TextureArray. L'âge de chacune
+  sert d'horloge. Le calcul de la couche peut être partagé avec run_animated.
+
+. ParticleSpriteInstance associe un Sprite à un RenderInstance déjà rempli
+  dans prepare et implémente le trait SpriteInstance du backend.
+
+  - offset vient de position.
+  - color vient de color.
+  - scale vient du tableau scale ([f32; 2] par particule). Un InitModule
+    initialise cette valeur et un UpdateModule peut la faire évoluer.
+  - layer vient du sprite statique ou du calcul d'animation à partir de l'âge.
+  - uv_min et uv_max couvrent la texture entière par défaut. Pour un atlas,
+    le cache de rendu les remplace par les UV de la région.
+  - _padding est initialisé à [0; 3].
+
+. Le renderer reprend la liste CPU, groupe les instances en batches,
+  sélectionne les pipelines et les textures, puis utilise le cache
+  d'instances existant pour préparer les buffers GPU et dessiner.
+
+-- Particle Data --
+
+. Possède des données par défaut du genre (pos, velocity, color, lifetime, curr_life,... (a voir pour d'autre)).
+
+.
 
 -- Resource de recherche --
 
