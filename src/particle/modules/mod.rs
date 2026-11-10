@@ -9,6 +9,7 @@ pub mod lifetime;
 pub mod position;
 pub mod scale;
 pub mod velocity;
+pub mod render;
 
 pub trait InitModule {
     fn write_mask(&self) -> u32;
