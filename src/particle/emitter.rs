@@ -1,6 +1,6 @@
 #[derive(Clone, Copy)]
 pub struct EmitterSettings {
-    count: u32,
+    pub(crate) count: u32,
     cycles: Option<u32>,
     spawn_duration: f32,
     period: f32,
