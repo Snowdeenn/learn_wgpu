@@ -1,0 +1,89 @@
+use super::modules::ParticleMask;
+
+pub struct ParticleData {
+    pub(super) pos: Vec<[f32; 2]>,
+    pub(super) scale: Vec<[f32; 2]>,
+    pub(super) velocity: Vec<[f32; 2]>,
+    pub(super) accel: Vec<f32>,
+    pub(super) lifetime: Vec<f32>,
+    pub(super) curr_lifetime: Vec<f32>,
+    pub(super) color: Vec<[f32; 4]>,
+}
+
+impl ParticleData {
+    pub fn new(count: usize) -> Self {
+        Self {
+            pos: vec![[0.0; 2]; count],
+            scale: vec![[1.0; 2]; count],
+            velocity: vec![[0.0; 2]; count],
+            accel: vec![0.0; count],
+            lifetime: vec![0.0; count],
+            curr_lifetime: vec![0.0; count],
+            color: vec![[1.0; 4]; count],
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.pos.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pos.is_empty()
+    }
+
+    pub fn resize(&mut self, count: usize) {
+        self.pos.resize(count, [0.0; 2]);
+        self.scale.resize(count, [1.0; 2]);
+        self.velocity.resize(count, [0.0; 2]);
+        self.accel.resize(count, 0.0);
+        self.lifetime.resize(count, 0.0);
+        self.curr_lifetime.resize(count, 0.0);
+        self.color.resize(count, [1.0; 4]);
+    }
+}
+
+pub enum Access<'a, T> {
+    Read(&'a [T]),
+    Write(&'a mut [T]),
+}
+
+macro_rules! particle_view {
+    ($($field:ident: $ty:ty => $bit:path),+ $(,)?) => {
+        pub struct ParticleView<'a> {
+            $(pub $field: Option<Access<'a, $ty>>),+
+        }
+
+        impl<'a> ParticleView<'a> {
+            pub fn from_masks(data: &'a mut ParticleData, read: u32, write: u32) -> Self {
+                Self {
+                    $(
+                        $field: if write & $bit != 0 {
+                            Some(Access::Write(data.$field.as_mut_slice()))
+                        } else if read & $bit != 0 {
+                            Some(Access::Read(data.$field.as_slice()))
+                        } else {
+                            None
+                        },
+                    )+
+                }
+            }
+        }
+    };
+}
+
+particle_view! {
+    pos: [f32; 2] => ParticleMask::POSITION,
+    scale: [f32; 2] => ParticleMask::SCALE,
+    velocity: [f32; 2] => ParticleMask::VELOCITY,
+    accel: f32 => ParticleMask::ACCEL,
+    lifetime: f32 => ParticleMask::LIFETIME,
+    curr_lifetime: f32 => ParticleMask::CURR_LIFETIME,
+    color: [f32; 4] => ParticleMask::COLOR,
+}
+
+#[macro_export]
+macro_rules! make_particle_view {
+    ($data:expr, $r_mask:expr, $w_mask:expr) => {
+        ParticleView::from_masks($data, $r_mask, $w_mask)
+    };
+}

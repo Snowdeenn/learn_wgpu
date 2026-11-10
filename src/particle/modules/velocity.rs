@@ -1,4 +1,5 @@
-use super::{Access, InitModule, ParticleMask, ParticleView, sample_uniform};
+use crate::particle::data::{Access, ParticleView};
+use super::{InitModule, ParticleMask, sample_uniform};
 
 pub struct InitVelocity {
     pub min: f32,
@@ -16,8 +17,8 @@ impl InitModule for InitVelocity {
         };
 
         for value in values {
-            for component in value {
-                *component = sample_uniform(self.min, self.max);
+            for channel in value {
+                *channel = sample_uniform(self.min, self.max);
             }
         }
     }

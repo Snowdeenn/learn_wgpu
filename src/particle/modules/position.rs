@@ -1,4 +1,5 @@
-use crate::particle::modules::{Access, UpdateModule};
+use crate::particle::data::{Access, ParticleView};
+use crate::particle::modules::{UpdateModule};
 
 use super::{InitModule, ParticleMask};
 
@@ -12,7 +13,7 @@ impl InitModule for InitPos {
         ParticleMask::POSITION
     }
 
-    fn init(&self, view: super::ParticleView<'_>) {
+    fn init(&self, view: ParticleView<'_>) {
         let Some(Access::Write(pos)) = view.pos else {
             unreachable!("Le moteur doit fournir le tableau position en écriture");
         };
@@ -38,7 +39,7 @@ impl UpdateModule for UpdatePos {
         ParticleMask::POSITION
     }
 
-    fn update(&self, view: super::ParticleView<'_>, dt: f32) {
+    fn update(&self, view: ParticleView<'_>, dt: f32) {
         let Some(Access::Write(pos)) = view.pos else {
             unreachable!("Le moteur doit fournir le tableau position en écriture");
         };

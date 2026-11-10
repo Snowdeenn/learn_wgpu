@@ -1,3 +1,4 @@
+use crate::particle::data::ParticleView;
 use rand::distr::Distribution;
 
 use crate::backend::{RenderInstance, Sprite, SpriteInstance};
@@ -38,22 +39,6 @@ impl SpriteInstance for ParticleSpriteInstance {
     fn sprite(&self) -> &Sprite {
         &self.sprite
     }
-}
-
-pub enum Access<'a, T> {
-    Read(&'a [T]),
-    Write(&'a mut [T]),
-}
-
-// TODO: Définir les données des particules pour pouvoir créer la view
-pub struct ParticleView<'a> {
-    pub pos: Option<Access<'a, [f32; 2]>>,
-    pub scale: Option<Access<'a, [f32; 2]>>,
-    pub velocity: Option<Access<'a, [f32; 2]>>,
-    pub accel: Option<Access<'a, f32>>,
-    pub lifetime: Option<Access<'a, f32>>,
-    pub curr_lifetime: Option<Access<'a, f32>>,
-    pub color: Option<Access<'a, [f32; 4]>>,
 }
 
 pub struct ParticleMask;

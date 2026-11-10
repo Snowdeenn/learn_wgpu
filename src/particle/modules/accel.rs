@@ -1,4 +1,5 @@
-use super::{Access, InitModule, ParticleMask, ParticleView, sample_uniform};
+use crate::particle::data::{Access, ParticleView};
+use super::{InitModule, ParticleMask, sample_uniform};
 
 pub struct InitAccel {
     pub min: f32,

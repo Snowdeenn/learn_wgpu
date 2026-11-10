@@ -1,4 +1,5 @@
-use super::{Access, InitModule, ParticleMask, ParticleView, UpdateModule, sample_uniform};
+use crate::particle::data::{Access, ParticleView};
+use super::{InitModule, ParticleMask, UpdateModule, sample_uniform};
 
 pub struct InitScale {
     pub min: f32,
