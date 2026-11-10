@@ -1,4 +1,4 @@
-use std::vec;
+use std::{sync::Arc, vec};
 
 use super::{instance::Dummy, resources::*};
 use crate::{
@@ -6,6 +6,18 @@ use crate::{
     camera::Camera2D,
     core::Resources,
     geometry::{mesh::Vertex, primitives::*},
+    particle::{
+        self,
+        EffectDescription, EmitterSettings,
+        modules::{
+            accel::InitAccel,
+            lifetime::{RandomLifetime, UpdateAge},
+            position::{InitPos, UpdatePos},
+            render::RenderSprite,
+            scale::InitScale,
+            velocity::InitVelocity,
+        },
+    },
 };
 
 pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
@@ -246,4 +258,32 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     resources.insert(RectMesh(rect_mesh));
     resources.insert(CircleMesh(circle_mesh));
     resources.insert(TriangleMesh(triangle_mesh));
+
+    particle::spawn_effect(Arc::new(EffectDescription {
+        emitter: EmitterSettings::continuous(96),
+        init_modules: vec![
+            Box::new(InitPos {
+                min: -6.0,
+                max: 6.0,
+            }),
+            Box::new(InitVelocity {
+                min: -160.0,
+                max: 160.0,
+            }),
+            Box::new(InitAccel { min: 1.0, max: 1.0 }),
+            Box::new(InitScale {
+                min: 8.0,
+                max: 14.0,
+            }),
+            Box::new(RandomLifetime {
+                min: 0.55,
+                max: 0.9,
+            }),
+        ],
+        update_modules: vec![Box::new(UpdateAge), Box::new(UpdatePos)],
+        render_modules: vec![Box::new(RenderSprite {
+            texture: id_a,
+            indices: 0..index_count,
+        })],
+    }));
 }

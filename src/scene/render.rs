@@ -1,7 +1,8 @@
 use super::resources::*;
 use crate::{
-    backend::{self, Sprite},
+    backend::{self, Sprite, SpriteInstance},
     core::Resources,
+    particle,
 };
 
 pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
@@ -17,23 +18,28 @@ pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
             pass.draw_indexed(0..**index_count, 0, count);
         }
         ScenePipeline::Texture => {
-            let ctx = resources.read_resource::<TexturePipelineContext>();
-            let array_ctx = resources.read_resource::<TextureArrayPipelineContext>();
             let mut instances = resources.write_resource::<InstanceData>();
-            let end = instances.len() as u32;
-            let batches = backend::batch(&mut instances, 0..end);
-
-            for batch in batches {
-                match &instances[batch.range.start as usize].sprite {
-                    Sprite::Separate { .. } | Sprite::Atlas { .. } => {
-                        backend::bind(&*ctx, pass);
-                    }
-                    Sprite::Array { .. } | Sprite::Animated { .. } => {
-                        backend::bind(&*array_ctx, pass);
-                    }
-                }
-                backend::draw(&mut instances, &batch, pass);
-            }
+            draw_sprites(resources, pass, &mut instances);
         }
+    }
+
+    particle::for_each_prepared_effect(|instances| draw_sprites(resources, pass, instances));
+}
+
+fn draw_sprites<T: SpriteInstance>(
+    resources: &Resources,
+    pass: &mut wgpu::RenderPass<'_>,
+    instances: &mut [T],
+) {
+    let ctx = resources.read_resource::<TexturePipelineContext>();
+    let array_ctx = resources.read_resource::<TextureArrayPipelineContext>();
+    let end = instances.len() as u32;
+
+    for batch in backend::batch(instances, 0..end) {
+        match instances[batch.range.start as usize].sprite() {
+            Sprite::Separate { .. } | Sprite::Atlas { .. } => backend::bind(&*ctx, pass),
+            Sprite::Array { .. } | Sprite::Animated { .. } => backend::bind(&*array_ctx, pass),
+        }
+        backend::draw(instances, &batch, pass);
     }
 }

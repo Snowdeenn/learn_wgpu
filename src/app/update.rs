@@ -2,6 +2,7 @@ use super::App;
 use crate::{
     backend::{self},
     camera::Camera2D,
+    particle,
     scene::resources::{CamBuffer, Fps, InstanceData},
 };
 use std::time::Instant;
@@ -28,6 +29,8 @@ impl App {
             let mut instances = self.resources.write_resource::<InstanceData>();
             backend::sprite::run_animated(&mut *instances, dt);
         }
+
+        particle::update_effects(dt);
 
         {
             let mut cam = self.resources.write_resource::<Camera2D>();
