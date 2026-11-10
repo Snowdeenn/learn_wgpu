@@ -7,15 +7,10 @@ use crate::{
     core::Resources,
     geometry::{mesh::Vertex, primitives::*},
     particle::{
-        self,
-        EffectDescription, EmitterSettings,
+        self, EffectDescription, EmitterSettings,
         modules::{
-            accel::InitAccel,
-            lifetime::{RandomLifetime, UpdateAge},
-            position::{InitPos, UpdatePos},
-            render::RenderSprite,
-            scale::InitScale,
-            velocity::InitVelocity,
+            InitAccel, InitPos, InitScale, InitVelocity, RandomLifetime, RenderSprite, UpdateAge,
+            UpdatePos,
         },
     },
 };
@@ -259,6 +254,14 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     resources.insert(CircleMesh(circle_mesh));
     resources.insert(TriangleMesh(triangle_mesh));
 
+    let bubble = backend::load_texture(
+        "bubble",
+        "assets/textures/Bubbles/Coloured/16x16/bubble_4.png",
+    )
+    .unwrap();
+
+    let (id_bubble, _) = backend::register_texture(bubble);
+
     particle::spawn_effect(Arc::new(EffectDescription {
         emitter: EmitterSettings::continuous(96),
         init_modules: vec![
@@ -282,7 +285,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
         ],
         update_modules: vec![Box::new(UpdateAge), Box::new(UpdatePos)],
         render_modules: vec![Box::new(RenderSprite {
-            texture: id_a,
+            texture: id_bubble,
             indices: 0..index_count,
         })],
     }));

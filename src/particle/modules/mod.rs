@@ -3,13 +3,21 @@ use rand::distr::Distribution;
 
 use crate::backend::{RenderInstance, Sprite, SpriteInstance};
 
-pub mod accel;
-pub mod color;
-pub mod lifetime;
-pub mod position;
-pub mod scale;
-pub mod velocity;
-pub mod render;
+mod accel;
+mod color;
+mod lifetime;
+mod position;
+mod scale;
+mod velocity;
+mod render;
+
+pub use accel::InitAccel;
+pub use position::*;
+pub use color::InitColor;
+pub use lifetime::*;
+pub use scale::*;
+pub use velocity::InitVelocity;
+pub use render::RenderSprite;
 
 pub trait InitModule: Send + Sync {
     fn write_mask(&self) -> u32;
