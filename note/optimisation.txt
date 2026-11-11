@@ -21,3 +21,5 @@
 . Respect de l'ordre de superposition des sprites transparents pendant le batching.
 
 . Migrer tout les conteneurs statique vers des structures Lock Free.
+
+. Proposer une api similaire au dessin de sprites pour les formes géométrique. 

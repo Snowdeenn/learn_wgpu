@@ -21,7 +21,7 @@ Etat au 05/11/2026. FAIT indique une fonctionnalité présente dans le code.
 . Instancing et regroupement par ressource et plage d'indices : un draw call par batch. FAIT.
 . Cache et réutilisation des buffers d'instances et de leurs bind groups. FAIT.
 . Interface de debug avec egui. FAIT.
-. Particules 2D. A FAIRE.
+. Particules 2D. FAIT.
 . Texte dans la scène, au-delà de l'interface egui. A FAIRE.
 . Rendu vers une texture hors écran (framebuffer). A FAIRE.
 . Projet : moteur 2D avec sprites animés, caméra, particules et interface. EN COURS.
