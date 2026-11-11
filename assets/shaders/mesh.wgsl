@@ -3,7 +3,7 @@ struct Dummy {
     offset: vec2f,
     scale: vec2f,
     layer: u32,
-    _padding0: u32,
+    rotation: f32,
     _padding1: u32,
     _padding2: u32,
     uv_min: vec2f,
@@ -39,7 +39,11 @@ fn vs_main(
     var ouput: VsOuput;
 
     let dummy = dummies[instance_index];
-    ouput.position = cam.view * vec4f(vertex.pos * dummy.scale + dummy.offset, 0.0, 1.0);
+    let angle = dummy.rotation;
+    let local = vertex.pos * dummy.scale;
+    let rotated = vec2f(local.x * cos(angle) - local.y * sin(angle),
+                        local.x * sin(angle) + local.y * cos(angle));
+    ouput.position = cam.view * vec4f(rotated + dummy.offset, 0.0, 1.0);
     ouput.color = dummy.color;
 
     return ouput;

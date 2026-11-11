@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::ops::Range;
 
 use super::modules::ParticleMask;
@@ -10,6 +11,9 @@ pub struct ParticleData {
     pub(super) lifetime: Vec<f32>,
     pub(super) curr_lifetime: Vec<f32>,
     pub(super) color: Vec<[f32; 4]>,
+    pub(super) rotation: Vec<f32>,
+    pub(super) angular_velocity: Vec<f32>,
+    pub(super) trail: Vec<VecDeque<[f32; 2]>>,
 }
 
 impl ParticleData {
@@ -22,6 +26,9 @@ impl ParticleData {
             lifetime: vec![0.0; count],
             curr_lifetime: vec![0.0; count],
             color: vec![[1.0; 4]; count],
+            rotation: vec![0.0; count],
+            angular_velocity: vec![0.0; count],
+            trail: vec![VecDeque::new(); count],
         }
     }
 
@@ -41,6 +48,9 @@ impl ParticleData {
         self.lifetime.resize(count, 0.0);
         self.curr_lifetime.resize(count, 0.0);
         self.color.resize(count, [1.0; 4]);
+        self.rotation.resize(count, 0.0);
+        self.angular_velocity.resize(count, 0.0);
+        self.trail.resize_with(count, VecDeque::new);
     }
 }
 
@@ -86,6 +96,9 @@ particle_view! {
     lifetime: f32 => ParticleMask::LIFETIME,
     curr_lifetime: f32 => ParticleMask::CURR_LIFETIME,
     color: [f32; 4] => ParticleMask::COLOR,
+    rotation: f32 => ParticleMask::ROTATION,
+    angular_velocity: f32 => ParticleMask::ANGULAR_VELOCITY,
+    trail: VecDeque<[f32; 2]> => ParticleMask::TRAIL,
 }
 
 #[macro_export]

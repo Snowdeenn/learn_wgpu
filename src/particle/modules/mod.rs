@@ -6,13 +6,27 @@ use crate::backend::shape::{MeshResource, ShapeInstance};
 use crate::backend::{RenderInstance, Sprite, SpriteInstance};
 
 mod accel;
+mod animated_sprite;
 mod color;
+mod forces;
 mod lifetime;
+mod over_lifetime;
 mod position;
 mod render;
+mod rotation;
 mod scale;
+mod spawn;
+#[cfg(test)]
+mod tests;
+mod trail;
 mod velocity;
 
+pub use animated_sprite::*;
+pub use forces::*;
+pub use over_lifetime::*;
+pub use rotation::*;
+pub use spawn::*;
+pub use trail::*;
 
 pub use accel::InitAccel;
 pub use color::InitColor;
@@ -23,6 +37,9 @@ pub use scale::*;
 pub use velocity::InitVelocity;
 
 pub trait InitModule: Send + Sync {
+    fn read_mask(&self) -> u32 {
+        0
+    }
     fn write_mask(&self) -> u32;
     fn init(&self, view: ParticleView<'_>);
 }
@@ -34,6 +51,10 @@ pub trait UpdateModule: Send + Sync {
 }
 
 pub trait RenderModule: Send + Sync {
+    /// Number of positions retained per particle by the effect, including its head.
+    fn trail_capacity(&self) -> usize {
+        0
+    }
     fn read_mask(&self) -> u32;
     fn prepare(&self, view: ParticleView<'_>, output: &mut RenderModuleOutput);
 }
@@ -99,6 +120,9 @@ impl ParticleMask {
     pub const LIFETIME: u32 = 1 << 4;
     pub const CURR_LIFETIME: u32 = 1 << 5;
     pub const COLOR: u32 = 1 << 6;
+    pub const ROTATION: u32 = 1 << 7;
+    pub const ANGULAR_VELOCITY: u32 = 1 << 8;
+    pub const TRAIL: u32 = 1 << 9;
 }
 
 pub(super) fn sample_uniform(min: f32, max: f32) -> f32 {

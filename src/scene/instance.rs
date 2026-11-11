@@ -30,7 +30,8 @@ impl backend::SpriteInstance for Dummy {
             offset: self.offset,
             scale: self.scale,
             layer,
-            _padding: [0; 3],
+            rotation: 0.0,
+            _padding: [0; 2],
             uv_min: [0.0; 2],
             uv_max: [1.0; 2],
         }

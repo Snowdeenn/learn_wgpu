@@ -20,6 +20,7 @@ pub struct EffectInstance {
     particles: ParticleData,
     alive_count: usize,
     render_output: RenderModuleOutput,
+    trail_capacity: usize,
 }
 
 impl EffectInstance {
@@ -27,6 +28,13 @@ impl EffectInstance {
         let count = description.emitter.count as usize;
         let emitter = EmitterInstance::new(&description.emitter);
         let particles = ParticleData::new(count);
+        let trail_capacity = description
+            .render_modules
+            .iter()
+            .map(|module| module.trail_capacity())
+            .max()
+            .unwrap_or(0);
+
         EffectInstance {
             description,
             position,
@@ -34,6 +42,7 @@ impl EffectInstance {
             particles,
             alive_count: 0,
             render_output: RenderModuleOutput::default(),
+            trail_capacity,
         }
     }
 
@@ -56,6 +65,27 @@ impl EffectInstance {
         }
 
         self.kill_expired_particles();
+        if dt > 0.0 {
+            self.record_trails();
+        }
+    }
+
+    fn record_trails(&mut self) {
+        if self.trail_capacity == 0 {
+            return;
+        }
+        for (history, &position) in self.particles.trail[..self.alive_count]
+            .iter_mut()
+            .zip(&self.particles.pos[..self.alive_count])
+        {
+            if history.back() == Some(&position) {
+                continue;
+            }
+            while history.len() >= self.trail_capacity {
+                history.pop_front();
+            }
+            history.push_back(position);
+        }
     }
 
     fn spawn_particles(&mut self, requested: usize) {
@@ -71,12 +101,17 @@ impl EffectInstance {
             particles.lifetime[start..end].fill(0.0);
             particles.curr_lifetime[start..end].fill(0.0);
             particles.color[start..end].fill([1.0; 4]);
+            particles.rotation[start..end].fill(0.0);
+            particles.angular_velocity[start..end].fill(0.0);
+            for history in &mut particles.trail[start..end] {
+                history.clear();
+            }
 
             for module in &self.description.init_modules {
                 let view = crate::make_particle_view!(
                     particles,
                     start..end,
-                    0,
+                    module.read_mask(),
                     module.write_mask()
                 );
                 module.init(view);
@@ -87,6 +122,11 @@ impl EffectInstance {
                 position[1] += self.position[1];
             }
             self.alive_count = end;
+            if self.trail_capacity > 0 {
+                for index in start..end {
+                    particles.trail[index].push_back(particles.pos[index]);
+                }
+            }
         }
     }
 
@@ -103,6 +143,9 @@ impl EffectInstance {
                 particles.lifetime.swap(index, last);
                 particles.curr_lifetime.swap(index, last);
                 particles.color.swap(index, last);
+                particles.rotation.swap(index, last);
+                particles.angular_velocity.swap(index, last);
+                particles.trail.swap(index, last);
                 self.alive_count = last;
             } else {
                 index += 1;
@@ -130,6 +173,95 @@ impl EffectInstance {
 mod tests {
     use super::*;
     use crate::particle::modules::{InitPos, RandomLifetime};
+
+    #[test]
+    fn radial_initialization_reads_local_positions_before_world_offset() {
+        use crate::particle::modules::*;
+        let description = Arc::new(EffectDescription {
+            emitter: EmitterSettings::once(1),
+            init_modules: vec![
+                Box::new(InitPosition {
+                    shape: PositionShape::Point([3.0, 4.0]),
+                    region: SpawnRegion::Volume,
+                }),
+                Box::new(RadialVelocity {
+                    center: [0.0; 2],
+                    min_speed: 5.0,
+                    max_speed: 5.0,
+                }),
+                Box::new(RandomLifetime {
+                    min: 10.0,
+                    max: 10.0,
+                }),
+            ],
+            update_modules: vec![Box::new(IntegratePosition)],
+            render_modules: vec![],
+        });
+        let mut effect = EffectInstance::new(description, [100.0, 200.0]);
+        effect.update(1.0);
+        assert_eq!(effect.particles.velocity[0], [3.0, 4.0]);
+        assert_eq!(effect.particles.pos[0], [106.0, 208.0]);
+    }
+
+    #[test]
+    fn histories_and_rotation_follow_compaction_and_reset_on_respawn() {
+        use crate::particle::modules::*;
+        let description = Arc::new(EffectDescription {
+            emitter: EmitterSettings::once(2),
+            init_modules: vec![Box::new(RandomLifetime {
+                min: 10.0,
+                max: 10.0,
+            })],
+            update_modules: vec![Box::new(UpdateAge), Box::new(IntegratePosition)],
+            render_modules: vec![Box::new(RenderTrail {
+                texture: new_collection::Id::zero(),
+                indices: 0..6,
+                max_points: 3,
+                width: 1.0,
+            })],
+        });
+        let mut first = EffectInstance::new(description.clone(), [0.0; 2]);
+        let mut second = EffectInstance::new(description, [100.0; 2]);
+        first.update(0.0);
+        second.update(0.0);
+        first.particles.velocity[1] = [2.0, 0.0];
+        first.particles.rotation[1] = 1.5;
+        first.particles.angular_velocity[1] = 3.0;
+        first.particles.lifetime[0] = 0.5;
+        first.update(1.0);
+        assert_eq!(first.alive_count, 1);
+        assert_eq!(first.particles.rotation[0], 1.5);
+        assert_eq!(first.particles.angular_velocity[0], 3.0);
+        assert_eq!(
+            first.particles.trail[0].iter().copied().collect::<Vec<_>>(),
+            [[0.0, 0.0], [2.0, 0.0]]
+        );
+        let history = first.particles.trail[0].clone();
+        first.prepare();
+        first.prepare();
+        assert_eq!(first.particles.trail[0], history);
+        first.update(1.0);
+        first.update(1.0);
+        assert_eq!(
+            first.particles.trail[0].iter().copied().collect::<Vec<_>>(),
+            [[2.0, 0.0], [4.0, 0.0], [6.0, 0.0]]
+        );
+        assert_eq!(
+            second.particles.trail[0]
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [[100.0, 100.0]]
+        );
+        first.particles.curr_lifetime[0] = 10.0;
+        first.kill_expired_particles();
+        first.spawn_particles(2);
+        assert_eq!(first.particles.rotation, [0.0; 2]);
+        assert_eq!(first.particles.angular_velocity, [0.0; 2]);
+        for trail in &first.particles.trail {
+            assert_eq!(trail.iter().copied().collect::<Vec<_>>(), [[0.0, 0.0]]);
+        }
+    }
 
     #[test]
     fn spawn_position_offsets_local_initial_positions_once() {

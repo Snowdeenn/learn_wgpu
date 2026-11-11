@@ -3,7 +3,7 @@ struct Dummy {
     offset: vec2f,
     scale: vec2f,
     layer: u32,
-    _padding0: u32,
+    rotation: f32,
     _padding1: u32,
     _padding2: u32,
     uv_min: vec2f,
@@ -23,6 +23,7 @@ struct UniCamera {
 struct VsOuput {
     @builtin(position) position: vec4f,
     @location(0) texcoord: vec2f,
+    @location(1) color: vec4f,
 }
 
 @group(0) @binding(0)
@@ -36,8 +37,13 @@ fn vs_main(vertex: Vertex, @builtin(instance_index) instance_index: u32) -> VsOu
     var ouput: VsOuput;
 
     let dummy = dummies[instance_index];
-    ouput.position = cam.view * vec4f(vertex.pos * dummy.scale + dummy.offset, 0.0, 1.0);
+    let angle = dummy.rotation;
+    let local = vertex.pos * dummy.scale;
+    let rotated = vec2f(local.x * cos(angle) - local.y * sin(angle),
+                        local.x * sin(angle) + local.y * cos(angle));
+    ouput.position = cam.view * vec4f(rotated + dummy.offset, 0.0, 1.0);
     ouput.texcoord = dummy.uv_min + vertex.uv * (dummy.uv_max - dummy.uv_min);
+    ouput.color = dummy.color;
 
     return ouput;
 }
@@ -49,5 +55,5 @@ var tex_sampler: sampler;
 
 @fragment
 fn fs_main(fs_input: VsOuput) -> @location(0) vec4f {
-    return textureSample(tex, tex_sampler, fs_input.texcoord);
+    return textureSample(tex, tex_sampler, fs_input.texcoord) * fs_input.color;
 }
