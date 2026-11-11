@@ -1,23 +1,26 @@
 use crate::particle::data::ParticleView;
+use new_collection::Id;
 use rand::distr::Distribution;
 
+use crate::backend::shape::{MeshResource, ShapeInstance};
 use crate::backend::{RenderInstance, Sprite, SpriteInstance};
 
 mod accel;
 mod color;
 mod lifetime;
 mod position;
+mod render;
 mod scale;
 mod velocity;
-mod render;
+
 
 pub use accel::InitAccel;
-pub use position::*;
 pub use color::InitColor;
 pub use lifetime::*;
+pub use position::*;
+pub use render::*;
 pub use scale::*;
 pub use velocity::InitVelocity;
-pub use render::RenderSprite;
 
 pub trait InitModule: Send + Sync {
     fn write_mask(&self) -> u32;
@@ -32,7 +35,7 @@ pub trait UpdateModule: Send + Sync {
 
 pub trait RenderModule: Send + Sync {
     fn read_mask(&self) -> u32;
-    fn prepare(&self, view: ParticleView<'_>, output: &mut Vec<ParticleSpriteInstance>);
+    fn prepare(&self, view: ParticleView<'_>, output: &mut RenderModuleOutput);
 }
 
 pub struct ParticleSpriteInstance {
@@ -47,6 +50,42 @@ impl SpriteInstance for ParticleSpriteInstance {
 
     fn sprite(&self) -> &Sprite {
         &self.sprite
+    }
+}
+
+pub struct ParticleShapeInstance {
+    pub mesh: Id<MeshResource>,
+    pub render: RenderInstance,
+}
+
+impl ShapeInstance for ParticleShapeInstance {
+    fn mesh(&self) -> Id<MeshResource> {
+        self.mesh
+    }
+
+    fn render_instance(&self) -> RenderInstance {
+        self.render
+    }
+}
+
+#[derive(Default)]
+pub struct RenderModuleOutput {
+    sprite: Vec<ParticleSpriteInstance>,
+    shape: Vec<ParticleShapeInstance>,
+}
+
+impl RenderModuleOutput {
+    pub fn clear(&mut self) {
+        self.shape.clear();
+        self.sprite.clear();
+    }
+
+    pub fn sprite(&mut self) -> &mut [ParticleSpriteInstance] {
+        &mut self.sprite
+    }
+
+    pub fn shape(&mut self) -> &mut [ParticleShapeInstance] {
+        &mut self.shape
     }
 }
 

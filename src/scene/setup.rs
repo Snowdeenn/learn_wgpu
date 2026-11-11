@@ -9,8 +9,8 @@ use crate::{
     particle::{
         self, EffectDescription, EmitterSettings,
         modules::{
-            InitAccel, InitPos, InitScale, InitVelocity, RandomLifetime, RenderSprite, UpdateAge,
-            UpdatePos,
+            InitAccel, InitPos, InitScale, InitVelocity, RandomLifetime, UpdateAge,
+            UpdatePos, RenderShape
         },
     },
 };
@@ -74,8 +74,12 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     let (rect_mesh, _) = create_rect_vertices();
     let (circle_mesh, _) = create_circle_vertices(CircleOptions::default());
     let (triangle_mesh, _) = create_triangle_vertices();
+    let rectangle = backend::shape::register(rect_mesh.clone());
+    let circle = backend::shape::register(circle_mesh.clone());
+    let triangle = backend::shape::register(triangle_mesh);
 
     let inst_1 = Dummy {
+        mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
         offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
@@ -87,6 +91,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     instance_data.push(inst_1);
 
     let inst_2 = Dummy {
+        mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
         offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
@@ -98,6 +103,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     instance_data.push(inst_2);
 
     let inst_3 = Dummy {
+        mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
         offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
@@ -112,6 +118,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     instance_data.push(inst_3);
 
     let inst_4 = Dummy {
+        mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
         offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
@@ -126,6 +133,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     instance_data.push(inst_4);
 
     let inst_5 = Dummy {
+        mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
         offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
@@ -149,6 +157,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     let (id_atlas, ids_regions) = backend::register_atlas(atlas, regions);
 
     let inst_6 = Dummy {
+        mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
         offset: [rand(-300.0, 300.0), rand(-200.0, 200.0)],
@@ -177,14 +186,10 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     backend::write_buffer(&index_buffer, 0, rect_mesh.indices());
 
     let index_count = rect_mesh.indices().len() as u32;
+    let circle_index_count = circle_mesh.indices().len() as u32;
 
     let cam_buff =
         buffer::uniform::<math::Mat4>(1).expect("Impossible d'allouer le buffer de caméra");
-
-    let (mesh_layout, mesh_group) = crate::bind_group! {
-       wgpu::ShaderStages::VERTEX => vertex_buffer,
-       wgpu::ShaderStages::VERTEX => instance_buffer,
-    };
 
     let (instance_lay, _) = crate::bind_group! {
         wgpu::ShaderStages::VERTEX => instance_buffer,
@@ -230,10 +235,11 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
             format: format,
             fragment: "fs_main",
             bind_group: [
-                (mesh_layout, mesh_group.clone()),
+                (instance_lay,),
                 (cam_layout, cam_group.clone())
             ],
-            index_buffer: Some(&index_buffer),
+            vertex_buffer: [(Vertex::layout(), &vertex_buffer)],
+            index_buffer: None,
         }
     };
 
@@ -250,9 +256,9 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     resources.insert(cam);
     resources.insert(InstanceData(instance_data));
     resources.insert(IndexCount(index_count));
-    resources.insert(RectMesh(rect_mesh));
-    resources.insert(CircleMesh(circle_mesh));
-    resources.insert(TriangleMesh(triangle_mesh));
+    resources.insert(RectMesh(rectangle));
+    resources.insert(CircleMesh(circle));
+    resources.insert(TriangleMesh(triangle));
 
     let bubble = backend::load_texture(
         "bubble",
@@ -260,33 +266,36 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     )
     .unwrap();
 
-    let (id_bubble, _) = backend::register_texture(bubble);
+    let (_id_bubble, _) = backend::register_texture(bubble);
 
-    particle::spawn_effect(Arc::new(EffectDescription {
-        emitter: EmitterSettings::continuous(96),
-        init_modules: vec![
-            Box::new(InitPos {
-                min: -6.0,
-                max: 6.0,
-            }),
-            Box::new(InitVelocity {
-                min: -160.0,
-                max: 160.0,
-            }),
-            Box::new(InitAccel { min: 1.0, max: 1.0 }),
-            Box::new(InitScale {
-                min: 8.0,
-                max: 14.0,
-            }),
-            Box::new(RandomLifetime {
-                min: 0.55,
-                max: 0.9,
-            }),
-        ],
-        update_modules: vec![Box::new(UpdateAge), Box::new(UpdatePos)],
-        render_modules: vec![Box::new(RenderSprite {
-            texture: id_bubble,
-            indices: 0..index_count,
-        })],
-    }));
+    particle::spawn_effect(
+        Arc::new(EffectDescription {
+            emitter: EmitterSettings::continuous(96),
+            init_modules: vec![
+                Box::new(InitPos {
+                    min: -6.0,
+                    max: 6.0,
+                }),
+                Box::new(InitVelocity {
+                    min: -160.0,
+                    max: 160.0,
+                }),
+                Box::new(InitAccel { min: 1.0, max: 1.0 }),
+                Box::new(InitScale {
+                    min: 8.0,
+                    max: 14.0,
+                }),
+                Box::new(RandomLifetime {
+                    min: 0.55,
+                    max: 0.9,
+                }),
+            ],
+            update_modules: vec![Box::new(UpdateAge), Box::new(UpdatePos)],
+            render_modules: vec![Box::new(RenderShape {
+                mesh: circle,
+                indices: 0..circle_index_count,
+            })],
+        }),
+        [30.0, 200.0],
+    );
 }

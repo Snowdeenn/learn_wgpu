@@ -1,21 +1,17 @@
 use super::resources::*;
 use crate::{
-    backend::{self, Sprite, SpriteInstance},
-    core::Resources,
-    particle,
+    backend::{self, Sprite, SpriteInstance, shape}, core::Resources, particle,
 };
 
 pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
-    let index_count = resources.read_resource::<IndexCount>();
     let scene = *resources.read_resource::<ScenePipeline>();
 
     match scene {
         ScenePipeline::Mesh => {
             let ctx = resources.read_resource::<MeshPipelineContext>();
-            let instances = resources.read_resource::<InstanceData>();
-            let count = 0..instances.len() as u32;
+            let mut instances = resources.write_resource::<InstanceData>();
             backend::bind(&*ctx, pass);
-            pass.draw_indexed(0..**index_count, 0, count);
+            backend::shape::draw_all(&mut instances, pass);
         }
         ScenePipeline::Texture => {
             let mut instances = resources.write_resource::<InstanceData>();
@@ -23,7 +19,8 @@ pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
         }
     }
 
-    particle::for_each_prepared_effect(|instances| draw_sprites(resources, pass, instances));
+    particle::for_each_prepared_effect(|instances| shape::draw_all(instances.shape(), pass));
+    particle::for_each_prepared_effect(|instances| draw_sprites(resources, pass, instances.sprite()));
 }
 
 fn draw_sprites<T: SpriteInstance>(

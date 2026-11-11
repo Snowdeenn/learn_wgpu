@@ -2,12 +2,18 @@ struct Dummy {
     color: vec4f,
     offset: vec2f,
     scale: vec2f,
+    layer: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
+    uv_min: vec2f,
+    uv_max: vec2f,
 }
 
 struct Vertex {
-    pos: vec2f,
-    uv: vec2f,
-    color: vec4f,
+    @location(0) pos: vec2f,
+    @location(1) uv: vec2f,
+    @location(2) color: vec4f,
 }
 
 struct UniCamera {
@@ -20,8 +26,6 @@ struct VsOuput {
 }
 
 @group(0) @binding(0)
-var<storage, read> vertices: array<Vertex>;
-@group(0) @binding(1)
 var<storage, read> dummies: array<Dummy>;
 
 @group(1) @binding(0)
@@ -29,12 +33,11 @@ var<uniform> cam: UniCamera;
 
 @vertex
 fn vs_main(
-    @builtin(vertex_index) vertex_index: u32,
+    vertex: Vertex,
     @builtin(instance_index) instance_index: u32,
 ) -> VsOuput {
     var ouput: VsOuput;
 
-    let vertex = vertices[vertex_index];
     let dummy = dummies[instance_index];
     ouput.position = cam.view * vec4f(vertex.pos * dummy.scale + dummy.offset, 0.0, 1.0);
     ouput.color = dummy.color;

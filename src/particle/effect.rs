@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use crate::particle::modules::RenderModuleOutput;
+
 use super::data::ParticleData;
 use super::emitter::{EmitterInstance, EmitterSettings};
-use super::modules::{InitModule, ParticleSpriteInstance, RenderModule, UpdateModule};
+use super::modules::{InitModule, RenderModule, UpdateModule};
 
 pub struct EffectDescription {
     pub emitter: EmitterSettings,
@@ -13,24 +15,25 @@ pub struct EffectDescription {
 
 pub struct EffectInstance {
     description: Arc<EffectDescription>,
+    position: [f32; 2],
     emitter: EmitterInstance,
     particles: ParticleData,
     alive_count: usize,
-    render_instances: Vec<ParticleSpriteInstance>,
+    render_output: RenderModuleOutput,
 }
 
 impl EffectInstance {
-    pub fn new(description: Arc<EffectDescription>) -> Self {
+    pub fn new(description: Arc<EffectDescription>, position: [f32; 2]) -> Self {
         let count = description.emitter.count as usize;
         let emitter = EmitterInstance::new(&description.emitter);
         let particles = ParticleData::new(count);
-
         EffectInstance {
             description,
+            position,
             emitter,
             particles,
             alive_count: 0,
-            render_instances: vec![],
+            render_output: RenderModuleOutput::default(),
         }
     }
 
@@ -70,9 +73,18 @@ impl EffectInstance {
             particles.color[start..end].fill([1.0; 4]);
 
             for module in &self.description.init_modules {
-                let view =
-                    crate::make_particle_view!(particles, start..end, 0, module.write_mask());
+                let view = crate::make_particle_view!(
+                    particles,
+                    start..end,
+                    0,
+                    module.write_mask()
+                );
                 module.init(view);
+            }
+
+            for position in &mut particles.pos[start..end] {
+                position[0] += self.position[0];
+                position[1] += self.position[1];
             }
             self.alive_count = end;
         }
@@ -98,8 +110,8 @@ impl EffectInstance {
         }
     }
 
-    pub fn prepare(&mut self) -> &mut [ParticleSpriteInstance] {
-        self.render_instances.clear();
+    pub fn prepare(&mut self) -> &mut RenderModuleOutput {
+        self.render_output.clear();
 
         for module in &self.description.render_modules {
             let view = crate::make_particle_view!(
@@ -108,8 +120,36 @@ impl EffectInstance {
                 module.read_mask(),
                 0,
             );
-            module.prepare(view, &mut self.render_instances);
+            module.prepare(view, &mut self.render_output);
         }
-        &mut self.render_instances
+        &mut self.render_output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::particle::modules::{InitPos, RandomLifetime};
+
+    #[test]
+    fn spawn_position_offsets_local_initial_positions_once() {
+        let description = Arc::new(EffectDescription {
+            emitter: EmitterSettings::once(1),
+            init_modules: vec![
+                Box::new(InitPos { min: 2.0, max: 2.0 }),
+                Box::new(RandomLifetime { min: 1.0, max: 1.0 }),
+            ],
+            update_modules: vec![],
+            render_modules: vec![],
+        });
+        let mut first = EffectInstance::new(description.clone(), [100.0, -50.0]);
+        let mut second = EffectInstance::new(description, [-10.0, 20.0]);
+        first.update(0.0);
+        second.update(0.0);
+        assert_eq!(first.particles.pos[0], [102.0, -48.0]);
+        assert_eq!(second.particles.pos[0], [-8.0, 22.0]);
+
+        first.update(0.1);
+        assert_eq!(first.particles.pos[0], [102.0, -48.0]);
     }
 }

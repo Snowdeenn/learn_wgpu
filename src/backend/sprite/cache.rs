@@ -38,6 +38,33 @@ pub(super) fn prepare<T: SpriteInstance>(
     instances: &[T],
     range: std::ops::Range<u32>,
 ) -> wgpu::BindGroup {
+    let render_instances = instances[range.start as usize..range.end as usize]
+        .iter()
+        .map(|instance| {
+            let mut render = instance.render_instance();
+            if let super::Sprite::Atlas {
+                texture, region, ..
+            } = instance.sprite()
+            {
+                let storage = crate::backend::context::texture_storage().read().unwrap();
+                let resource = storage.get(*texture).expect("Unknown texture");
+                let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource
+                else {
+                    panic!("Expected an atlas texture");
+                };
+                let region = regions.get(*region).expect("Unknown atlas region");
+                render.uv_min = region.uv_min;
+                render.uv_max = region.uv_max;
+            }
+            render
+        });
+    prepare_render_instances(render_instances, range)
+}
+
+pub(in crate::backend) fn prepare_render_instances(
+    instances: impl Iterator<Item = RenderInstance>,
+    range: std::ops::Range<u32>,
+) -> wgpu::BindGroup {
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
     let index = cache.next;
     let required = range.end as usize;
@@ -50,31 +77,7 @@ pub(super) fn prepare<T: SpriteInstance>(
     }
 
     cache.staging.clear();
-    cache.staging.extend(
-        instances[range.start as usize..required].iter().map(|instance| {
-            let mut render = instance.render_instance();
-
-            if let super::Sprite::Atlas {
-                texture, region, ..
-            } = instance.sprite()
-            {
-                let storage = crate::backend::context::texture_storage().read().unwrap();
-
-                let resource = storage.get(*texture).expect("Unknown texture");
-
-                let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource
-                else {
-                    panic!("Expected an atlas texture");
-                };
-
-                let region = regions.get(*region).expect("Unknown atlas region");
-                render.uv_min = region.uv_min;
-                render.uv_max = region.uv_max;
-            }
-
-            render
-        }),
-    );
+    cache.staging.extend(instances);
     let slot = &cache.slots[index];
     buffer::write_buffer(
         &slot.buffer,

@@ -1,8 +1,4 @@
-use super::resources::{
-    CircleMesh, Fps, IndexBuffer, IndexCount, InstanceBuffer, InstanceData, RectMesh,
-    ScenePipeline, TriangleMesh, VertexBuffer,
-};
-use crate::backend;
+use super::resources::{CircleMesh, Fps, InstanceData, RectMesh, ScenePipeline, TriangleMesh};
 use crate::core::Resources;
 use crate::debug::{DebugManager, DebugUi};
 
@@ -20,17 +16,7 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                 .header(true)
                 .show(|w| {
                     w.ui.radio_value(&mut selected, ScenePipeline::Mesh, "Mesh Pipeline");
-                    if w.ui
-                        .radio_value(&mut selected, ScenePipeline::Texture, "Texture Pipeline")
-                        .changed()
-                    {
-                        let mesh = rs.read_resource::<RectMesh>();
-                        let vertices = rs.read_resource::<VertexBuffer>();
-                        let indices = rs.read_resource::<IndexBuffer>();
-                        backend::write_buffer(&**vertices, 0, mesh.vertices());
-                        backend::write_buffer(&**indices, 0, mesh.indices());
-                        **rs.write_resource::<IndexCount>() = mesh.indices().len() as u32;
-                    }
+                    w.ui.radio_value(&mut selected, ScenePipeline::Texture, "Texture Pipeline");
                 });
             *rs.write_resource::<ScenePipeline>() = selected;
 
@@ -39,31 +25,22 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                     .header(true)
                     .show(|w| {
                         if w.button("Triangle").clicked() {
-                            let vbuffer = rs.read_resource::<VertexBuffer>();
-                            let ibuffer = rs.read_resource::<IndexBuffer>();
-                            let t_mesh = rs.read_resource::<TriangleMesh>();
-                            let mut icount = rs.write_resource::<IndexCount>();
-                            **icount = t_mesh.indices().len() as u32;
-                            backend::write_buffer(&**vbuffer, 0, t_mesh.vertices());
-                            backend::write_buffer(&**ibuffer, 0, t_mesh.indices());
+                            let mesh = **rs.read_resource::<TriangleMesh>();
+                            for instance in rs.write_resource::<InstanceData>().iter_mut() {
+                                instance.mesh = mesh;
+                            }
                         }
                         if w.button("Rect").clicked() {
-                            let vbuffer = rs.read_resource::<VertexBuffer>();
-                            let ibuffer = rs.read_resource::<IndexBuffer>();
-                            let r_mesh = rs.read_resource::<RectMesh>();
-                            let mut icount = rs.write_resource::<IndexCount>();
-                            **icount = r_mesh.indices().len() as u32;
-                            backend::write_buffer(&**vbuffer, 0, r_mesh.vertices());
-                            backend::write_buffer(&**ibuffer, 0, r_mesh.indices());
+                            let mesh = **rs.read_resource::<RectMesh>();
+                            for instance in rs.write_resource::<InstanceData>().iter_mut() {
+                                instance.mesh = mesh;
+                            }
                         }
                         if w.button("Circle").clicked() {
-                            let vbuffer = rs.read_resource::<VertexBuffer>();
-                            let ibuffer = rs.read_resource::<IndexBuffer>();
-                            let c_mesh = rs.read_resource::<CircleMesh>();
-                            let mut icount = rs.write_resource::<IndexCount>();
-                            **icount = c_mesh.indices().len() as u32;
-                            backend::write_buffer(&**vbuffer, 0, c_mesh.vertices());
-                            backend::write_buffer(&**ibuffer, 0, c_mesh.indices());
+                            let mesh = **rs.read_resource::<CircleMesh>();
+                            for instance in rs.write_resource::<InstanceData>().iter_mut() {
+                                instance.mesh = mesh;
+                            }
                         }
                     });
             }
@@ -72,7 +49,6 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                 .header(true)
                 .show(|w| {
                     let mut instances = rs.write_resource::<InstanceData>();
-                    let mut changed = false;
 
                     for (index, instance) in instances.iter_mut().enumerate() {
                         w.ui.push_id(index, |ui| {
@@ -80,29 +56,12 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                             w.create_widget(format!("Instance {index}"))
                                 .header(true)
                                 .show(|w| {
-                                    changed |= w
-                                        .slider("Offset x", &mut instance.offset[0], -300.0..=300.0)
-                                        .changed();
-                                    changed |= w
-                                        .slider("Offset y", &mut instance.offset[1], -300.0..=300.0)
-                                        .changed();
-                                    changed |= w
-                                        .slider("Scale x", &mut instance.scale[0], 0.0..=200.0)
-                                        .changed();
-                                    changed |= w
-                                        .slider("Scale y", &mut instance.scale[1], 0.0..=200.0)
-                                        .changed();
+                                    w.slider("Offset x", &mut instance.offset[0], -300.0..=300.0);
+                                    w.slider("Offset y", &mut instance.offset[1], -300.0..=300.0);
+                                    w.slider("Scale x", &mut instance.scale[0], 0.0..=200.0);
+                                    w.slider("Scale y", &mut instance.scale[1], 0.0..=200.0);
                                 });
                         });
-                    }
-
-                    if changed {
-                        let buffer = rs.read_resource::<InstanceBuffer>();
-                        let render_instances: Vec<_> = instances
-                            .iter()
-                            .map(backend::SpriteInstance::render_instance)
-                            .collect();
-                        backend::write_buffer(&**buffer, 0, &render_instances);
                     }
                 });
         });

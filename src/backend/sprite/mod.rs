@@ -1,5 +1,5 @@
 mod batch;
-mod cache;
+pub(super) mod cache;
 mod draw;
 mod instance;
 
