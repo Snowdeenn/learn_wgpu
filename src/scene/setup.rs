@@ -260,6 +260,32 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     resources.insert(CircleMesh(circle));
     resources.insert(TriangleMesh(triangle));
 
+    let world_label = backend::text::register(backend::text::TextDescription {
+        content: "Origine du monde",
+        font_size: 18.0,
+        line_height: 24.0,
+        ..Default::default()
+    })
+    .expect("Impossible de creer le texte monde");
+
+    let hud_label = backend::text::register(backend::text::TextDescription {
+        content: "WASD : deplacer la camera",
+        font_size: 18.0,
+        line_height: 24.0,
+        ..Default::default()
+    })
+    .expect("Impossible de creer le texte ecran");
+
+    let mut world_text = backend::text::Text::new(world_label, backend::text::TextSpace::World);
+    world_text.position = [0.0, -40.0];
+    world_text.anchor = [0.5, 1.0];
+    world_text.color = [1.0, 0.85, 0.3, 1.0];
+
+    let mut hud_text = backend::text::Text::new(hud_label, backend::text::TextSpace::Screen);
+    hud_text.position = [20.0, 20.0];
+
+    resources.insert(TextInstances(vec![world_text, hud_text]));
+
     let bubble = backend::load_texture(
         "bubble",
         "assets/textures/Bubbles/Coloured/128x128/bubble_4.png",

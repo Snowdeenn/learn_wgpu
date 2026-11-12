@@ -109,9 +109,23 @@ impl ApplicationHandler for App {
                         debug.begin_frame(window);
                         scene::debug_panel::run(debug, &self.resources);
 
-                        frame.render(|pass| scene::render::render(&self.resources, pass));
-
                         let size_in_pixels = frame.size_in_pixels();
+                        if let Err(error) = scene::render::prepare_text(
+                            &self.resources,
+                            size_in_pixels,
+                            window.scale_factor() as f32,
+                        ) {
+                            eprintln!("{error}");
+                            event_loop.exit();
+                            return;
+                        }
+                        frame.render(|pass| {
+                            if let Err(error) = scene::render::render(&self.resources, pass) {
+                                eprintln!("{error}");
+                                event_loop.exit();
+                            }
+                        });
+
                         debug.flush_into(window, &mut frame.encoder, &frame.view, size_in_pixels);
 
                         frame.finish();

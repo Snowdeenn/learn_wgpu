@@ -8,13 +8,19 @@ use crate::core::Input;
 
 pub struct Camera2D {
     pos: Vec2,
+    zoom: f32,
 }
 
 impl Camera2D {
     pub fn new() -> Self {
-        Camera2D { pos: Vec2::zero() }
+        Camera2D {
+            pos: Vec2::zero(),
+            zoom: 1.0,
+        }
     }
     pub fn get_view_proj(&self, screen_w: f32, screen_h: f32) -> Mat4 {
+        let screen_w = screen_w / self.zoom;
+        let screen_h = screen_h / self.zoom;
         let proj = Mat4::orthographic_wgpu(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
         let view = Mat4::translation(
             -self.pos.x + (screen_w * 0.5),
@@ -28,6 +34,26 @@ impl Camera2D {
     }
     pub fn pos(&self) -> Vec2 {
         self.pos
+    }
+
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+
+    /// Physical pixels per world unit. Panics for nonpositive or nonfinite values.
+    pub fn set_zoom(&mut self, zoom: f32) {
+        assert!(
+            zoom.is_finite() && zoom > 0.0,
+            "Camera zoom must be finite and positive"
+        );
+        self.zoom = zoom;
+    }
+
+    pub fn world_to_screen(&self, position: [f32; 2], resolution: [u32; 2]) -> [f32; 2] {
+        [
+            (position[0] - self.pos.x) * self.zoom + resolution[0] as f32 * 0.5,
+            (position[1] - self.pos.y) * self.zoom + resolution[1] as f32 * 0.5,
+        ]
     }
 }
 

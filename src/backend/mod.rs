@@ -8,6 +8,7 @@ pub mod sampler;
 pub mod texture;
 
 mod shader;
+pub mod text;
 pub mod shape;
 pub mod sprite;
 

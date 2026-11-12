@@ -18,6 +18,7 @@ pub enum ScenePipeline {
 }
 
 crate::unique_resource!(InstanceData, Vec<Dummy>);
+crate::unique_resource!(TextInstances, Vec<crate::backend::text::Text>);
 crate::unique_resource!(IndexCount, u32);
 crate::unique_resource!(RectMesh, Id<MeshResource>);
 crate::unique_resource!(CircleMesh, Id<MeshResource>);

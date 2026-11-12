@@ -44,6 +44,8 @@ impl Renderer {
         conf.format = wgpu::TextureFormat::Bgra8UnormSrgb;
         surface.configure(context::device(), &conf);
 
+        super::text::init(conf.format).expect("Impossible d'initialiser le contexte texte");
+
         Self { surface, conf }
     }
 
@@ -94,6 +96,7 @@ impl Renderer {
             texture_surface: frame,
             view,
             encoder,
+            _text_cleanup: super::text::FrameCleanup,
         }))
     }
 }
@@ -103,6 +106,8 @@ pub struct Frame<'a> {
     texture_surface: wgpu::SurfaceTexture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) encoder: wgpu::CommandEncoder,
+    // Keep this after the encoder: discard its commands before releasing text resources.
+    _text_cleanup: super::text::FrameCleanup,
 }
 
 impl<'a> Frame<'a> {
@@ -131,6 +136,7 @@ impl<'a> Frame<'a> {
     pub fn finish(self) {
         context::queue().submit([self.encoder.finish()]);
         super::sprite::submitted();
+        super::text::submitted();
         self.window.pre_present_notify();
         context::queue().present(self.texture_surface);
     }

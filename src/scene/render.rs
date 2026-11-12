@@ -1,9 +1,32 @@
 use super::resources::*;
 use crate::{
-    backend::{self, Sprite, SpriteInstance, shape}, core::Resources, particle,
+    backend::{self, Sprite, SpriteInstance, shape, text},
+    camera::Camera2D,
+    core::Resources,
+    particle,
 };
 
-pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
+pub fn prepare_text(
+    resources: &Resources,
+    resolution: [u32; 2],
+    scale_factor: f32,
+) -> Result<(), text::TextError> {
+    let camera = resources.read_resource::<Camera2D>();
+    let instances = resources.read_resource::<TextInstances>();
+    text::prepare(
+        &instances,
+        &text::TextView {
+            resolution,
+            scale_factor,
+            camera: &camera,
+        },
+    )
+}
+
+pub fn render(
+    resources: &Resources,
+    pass: &mut wgpu::RenderPass<'_>,
+) -> Result<(), text::TextError> {
     let scene = *resources.read_resource::<ScenePipeline>();
 
     match scene {
@@ -20,7 +43,10 @@ pub fn render(resources: &Resources, pass: &mut wgpu::RenderPass<'_>) {
     }
 
     particle::for_each_prepared_effect(|instances| shape::draw_all(instances.shape(), pass));
-    particle::for_each_prepared_effect(|instances| draw_sprites(resources, pass, instances.sprite()));
+    particle::for_each_prepared_effect(|instances| {
+        draw_sprites(resources, pass, instances.sprite())
+    });
+    text::draw_all(pass)
 }
 
 fn draw_sprites<T: SpriteInstance>(
