@@ -9,8 +9,9 @@ use crate::{
     particle::{
         self, EffectDescription, EmitterSettings,
         modules::{
-            InitAccel, InitPos, InitScale, InitVelocity, RandomLifetime, UpdateAge,
-            UpdatePos, RenderShape
+            ColorOverLifetime, ConeVelocity, Drag, Gravity, InitAngularVelocity, InitPosition,
+            InitRotation, IntegratePosition, IntegrateRotation, NoiseForce, PositionShape,
+            RandomLifetime, RenderShape, ScaleOverLifetime, SpawnRegion, UpdateAge, WithRotation,
         },
     },
 };
@@ -186,7 +187,6 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     backend::write_buffer(&index_buffer, 0, rect_mesh.indices());
 
     let index_count = rect_mesh.indices().len() as u32;
-    let circle_index_count = circle_mesh.indices().len() as u32;
 
     let cam_buff =
         buffer::uniform::<math::Mat4>(1).expect("Impossible d'allouer le buffer de caméra");
@@ -262,7 +262,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
 
     let bubble = backend::load_texture(
         "bubble",
-        "assets/textures/Bubbles/Coloured/16x16/bubble_4.png",
+        "assets/textures/Bubbles/Coloured/128x128/bubble_4.png",
     )
     .unwrap();
 
@@ -270,31 +270,60 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
 
     particle::spawn_effect(
         Arc::new(EffectDescription {
-            emitter: EmitterSettings::continuous(96),
+            // Une seconde d'émission par bouffée, puis une pause avant la suivante.
+            emitter: EmitterSettings::burst(96, 4.5),
             init_modules: vec![
-                Box::new(InitPos {
-                    min: -6.0,
-                    max: 6.0,
+                Box::new(InitPosition {
+                    shape: PositionShape::Circle {
+                        center: [0.0; 2],
+                        radius: 18.0,
+                    },
+                    region: SpawnRegion::Volume,
                 }),
-                Box::new(InitVelocity {
-                    min: -160.0,
-                    max: 160.0,
+                Box::new(ConeVelocity {
+                    // L'axe Y de la caméra pointe vers le bas.
+                    direction: -std::f32::consts::FRAC_PI_2,
+                    spread: 0.45,
+                    min_speed: 65.0,
+                    max_speed: 110.0,
                 }),
-                Box::new(InitAccel { min: 1.0, max: 1.0 }),
-                Box::new(InitScale {
-                    min: 8.0,
-                    max: 14.0,
+                Box::new(InitRotation {
+                    min: -0.3,
+                    max: 0.3,
                 }),
-                Box::new(RandomLifetime {
-                    min: 0.55,
-                    max: 0.9,
+                Box::new(InitAngularVelocity {
+                    min: -0.4,
+                    max: 0.4,
+                }),
+                Box::new(RandomLifetime { min: 2.2, max: 3.2 }),
+            ],
+            update_modules: vec![
+                Box::new(UpdateAge),
+                // Une poussée vers le haut et du bruit simulent la flottabilité.
+                Box::new(Gravity {
+                    acceleration: [0.0, -24.0],
+                }),
+                Box::new(NoiseForce {
+                    strength: 28.0,
+                    frequency: 0.025,
+                    seed: 42,
+                }),
+                Box::new(Drag { coefficient: 0.35 }),
+                Box::new(IntegratePosition),
+                Box::new(IntegrateRotation),
+                Box::new(ScaleOverLifetime {
+                    start: [5.0; 2],
+                    end: [15.0; 2],
+                }),
+                Box::new(ColorOverLifetime {
+                    start: [1.0, 1.0, 1.0, 0.85],
+                    end: [0.75, 0.9, 1.0, 0.0],
                 }),
             ],
-            update_modules: vec![Box::new(UpdateAge), Box::new(UpdatePos)],
-            render_modules: vec![Box::new(RenderShape {
-                mesh: circle,
-                indices: 0..circle_index_count,
-            })],
+            render_modules: vec![Box::new(WithRotation(RenderShape {
+                mesh: rectangle,
+                indices: 0..index_count,
+            }))],
         }),
         [30.0, 200.0],
     );
