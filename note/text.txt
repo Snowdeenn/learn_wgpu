@@ -1,0 +1,224 @@
+-- État de l'implémentation --
+
+. API disponible dans backend::text : init, register, set_text, set_layout, remove,
+  prepare, draw_all, submitted et discard. Les opérations retournent Result.
+. TextDescription utilise les polices système (SansSerif par défaut), avec famille,
+  graisse et style. Taille 24, interligne 30, retour WordOrGlyph par défaut.
+. TextLayout règle taille, interligne, largeur maximale, alignement et retour à la ligne.
+  set_text conserve la police et l'alignement du buffer, même après un contenu vide.
+. Text / TextPlacement ajoutent anchor ([0, 0] en haut à gauche, [0.5, 0.5] au centre)
+  et clip (TextClip en pixels logiques écran, pour les deux espaces).
+. L'ancre utilise la boîte de layout : largeur configurée ou largeur du texte,
+  hauteur totale des lignes. L'alignement reste celui des paragraphes dans cette boîte.
+. Couleurs RGBA sRGB non prémultipliées, bornées à [0, 1], converties en octets.
+. TextView contient resolution physique, scale_factor DPI et une référence à Camera2D.
+  Screen applique le DPI ; World applique la position et le zoom de Camera2D.
+  Une unité monde vaut zoom pixels physiques, comme pour les sprites.
+. prepare conserve l'ordre dans chaque groupe et place World avant Screen.
+  Les buffers sont recalculés seulement lorsque Cosmic Text les considère modifiés.
+. Une préparation par frame, y compris pour une liste vide. Une seconde préparation
+  est refusée tant que la frame précédente n'est pas soumise ou abandonnée.
+  Une préparation échouée ne peut pas être dessinée. Un deuxième dessin est refusé.
+. submitted libère les glyphes réservés après queue.submit. discard exige que tous
+  les encodeurs/command buffers de la frame soient détruits, sans soumission ultérieure.
+  Frame::finish et le nettoyage à la destruction de Frame gèrent ces deux cas.
+. Renderer initialise le contexte ; la scène possède TextInstances avec un exemple
+  monde et un exemple écran. Préparation avant la passe, dessin après les particules,
+  avant egui. Le renderer texte utilise une cible sans profondeur, à un seul échantillon.
+. Tests à ajouter : projection caméra, DPI, ancre, clipping, ordre, édition,
+  valeurs invalides et cycle de rendu GPU hors écran.
+
+Exemple :
+let label = text::register(text::TextDescription {
+    content: "Bonjour",
+    ..Default::default()
+})?;
+let mut instance = text::Text::new(label, text::TextSpace::Screen);
+instance.position = [20.0, 20.0];
+text::set_text(label, "Bonsoir")?;
+text::prepare(&[instance], &text::TextView {
+    resolution: [800, 600], scale_factor: 1.0, camera: &camera,
+})?;
+// Dans la passe : text::draw_all(pass)?;
+// Après soumission : text::submitted(); (automatique avec Frame::finish)
+
+-- Notes de conception initiales --
+
+-- Structure A Utiliser de glyphon --
+
+. TextRenderer => prépare les données de dessin et émet les commandes dans la render pass.
+. FontSystem => gère les polices et les données nécessaires au calcul des glyphes.
+. SwashCache => fournit le contexte de rastérisation CPU.
+. Cache => partage des ressources GPU internes à Glyphon, comme les shaders et les samplers.
+. TextAtlas => conserve les images des glyphes sur le GPU.
+. Viewport => contient la résolution de la cible pour convertir les coordonnées en pixels vers les coordonnées du rendu.
+
+. Prévoir la gestion des buffers de text.
+
+-- Comprendre les données Glyphon --
+
+. Un glyphe est une forme provenant d'une police, pas forcément un caractère unique
+  (une ligature peut représenter plusieurs caractères).
+. glyphon::Buffer est un objet CPU, distinct d'un wgpu::Buffer. Il conserve le texte,
+  ses attributs, les paramètres de mise en page et les résultats de shaping/layout.
+  Il peut contenir plusieurs lignes et plusieurs styles. Il ne contient pas les images des glyphes.
+. FontSystem permet de sélectionner les polices et de calculer les glyphes et leur disposition.
+. Swash rastérise les glyphes : il transforme leur forme en pixels à la taille demandée.
+  SwashCache fournit son contexte de travail et peut conserver des images côté CPU.
+  Nuance pour Glyphon 0.12 : le renderer utilise get_image_uncached ; la réutilisation
+  des images pour ce chemin de rendu se fait principalement via l'atlas GPU.
+. TextAtlas regroupe les images de glyphes dans des textures GPU, comme un atlas de sprites.
+  Plusieurs textes et plusieurs frames peuvent réutiliser les mêmes entrées tant qu'elles
+  restent dans l'atlas. Une taille ou un placement sous-pixel différent peut créer une autre entrée.
+. Cache et SwashCache sont deux objets distincts : ressources GPU partagées / rastérisation CPU.
+  Conserver Cache est pratique pour créer d'autres ressources ; sa durée de vie n'est pas
+  imposée par un emprunt des objets construits avec lui.
+. TextArea est une description temporaire : référence vers un Buffer, position écran,
+  échelle, couleur par défaut et rectangle de découpe. On peut la reconstruire chaque frame.
+
+-- Direction retenue --
+
+. Supporter le texte dans le monde et le texte fixé à l'écran (UI/HUD).
+. Garder l'identité du moteur : fonctions libres dans backend::text, ressources dans une
+  Arena de new_collection, références via Id, instances conservées côté scène.
+. Cacher les gros objets Glyphon et les verrous derrière l'API du module.
+. Séparer la ressource texte (contenu et mise en page) de son instance (placement et apparence).
+. Les signatures ci-dessous décrivent le design accepté ; les détails restent à finaliser
+  au moment de l'implémentation. Voir les choix réalisés en tête de fichier.
+
+-- Contexte global privé --
+
+struct TextContext {
+    font_system: glyphon::FontSystem,
+    swash_cache: glyphon::SwashCache,
+    cache: glyphon::Cache,
+    viewport: glyphon::Viewport,
+    atlas: glyphon::TextAtlas,
+    renderer: glyphon::TextRenderer,
+    texts: Arena<TextResource>,
+}
+
+static CONTEXT: OnceLock<Mutex<TextContext>> = OnceLock::new();
+
+. Le module utilise backend::context::device() et queue(), comme les autres modules.
+. Initialisation explicite après le contexte GPU, avec le format de la cible de rendu.
+. Un seul Mutex protège les ressources texte et les objets Glyphon. La préparation demande
+  des accès mutables simultanés au FontSystem, au SwashCache, à l'atlas et au renderer.
+. Pas de verrou par champ pour cette première version : cela compliquerait les emprunts
+  et l'ordre de verrouillage sans besoin identifié.
+. Le contexte et les guards ne sont pas exposés aux utilisateurs du module.
+. Ne pas reprendre ce même verrou depuis une fonction appelée alors qu'il est déjà détenu.
+  Les fonctions internes travaillent sur le contexte déjà emprunté.
+. Le Mutex protège la mémoire, mais pas l'ordre logique des opérations. Le thread de rendu
+  reste responsable de la séquence préparation, dessin et soumission.
+
+-- Ressource texte --
+
+pub struct TextResource {
+    buffer: glyphon::Buffer,
+}
+
+pub type TextId = Id<TextResource>;
+
+. Le buffer possède déjà contenu, attributs et mise en page : éviter une seconde copie
+  permanente de toutes ces données dans TextResource.
+. TextDescription regroupe les paramètres de création : contenu, police, taille,
+  interligne, largeur maximale, alignement et comportement de retour à la ligne.
+. Prévoir des fonctions libres : register, set_text, set_layout et remove.
+. Exemple d'utilisation envisagé :
+
+let label = text::register(TextDescription {
+    content: "Bonjour",
+    font_size: 24.0,
+    line_height: 30.0,
+    ..Default::default()
+});
+
+. Une ressource peut être partagée par plusieurs instances. La modifier affecte toutes
+  les instances qui la référencent. Pour deux contenus indépendants, créer deux ressources.
+. Conserver les buffers entre les frames et recalculer leur mise en page quand nécessaire.
+  Déplacer une instance ne doit pas déclencher un nouveau calcul de mise en page.
+
+-- Instances côté scène --
+
+pub enum TextSpace {
+    Screen,
+    World,
+}
+
+pub struct Text {
+    pub text: TextId,
+    pub position: [f32; 2],
+    pub scale: f32,
+    pub color: [f32; 4],
+    pub space: TextSpace,
+}
+
+pub trait TextInstance {
+    fn text(&self) -> TextId;
+    fn placement(&self) -> TextPlacement;
+}
+
+. Text implémente TextInstance, sur le modèle de Shape / ShapeInstance.
+. TextPlacement regroupe position, échelle, couleur et espace. Prévoir ensuite l'ancre
+  et le rectangle de découpe. Sa représentation exacte reste à définir.
+. Les objets de la scène peuvent implémenter TextInstance avec leurs propres données.
+. Les listes d'instances restent dans les Resources de la scène : le contexte connaît
+  les textes disponibles ; la scène décide lesquels afficher.
+. Screen : coordonnées en pixels logiques depuis le coin supérieur gauche ; conversion
+  vers les pixels physiques avec le facteur DPI de la fenêtre.
+. World : coordonnées monde, projetées via la caméra ; son zoom agit sur la taille du texte.
+. Les TextArea transmises à Glyphon utilisent au final des coordonnées écran physiques.
+. L'ancre de placement est distincte de l'alignement du paragraphe : par exemple, un label
+  peut être ancré par son centre au-dessus d'un objet.
+
+-- Cycle de rendu --
+
+// Avant la render pass : view décrit résolution physique, facteur DPI et caméra.
+text::prepare(&instances, &view)?;
+
+// Dans la render pass, après les sprites.
+text::draw_all(pass)?;
+
+// Après queue.submit(), depuis Frame::finish.
+text::submitted();
+
+. prepare résout les IDs, met à jour le viewport et les layouts nécessaires, convertit
+  les placements, construit les TextArea puis appelle Glyphon pour préparer le dessin.
+. draw_all dessine les données déjà préparées. Glyphon gère son pipeline et ses bindings.
+. submitted est le point d'entretien de fin de frame pour l'atlas, sur le modèle du hook
+  backend::sprite::submitted existant. Il intervient après la soumission GPU.
+. Première version : une préparation de tous les textes et un dessin par frame.
+. Ordre initial : scène/sprites/particules, textes monde, textes écran, debug egui.
+  Préparer les textes dans cet ordre ; conserver l'ordre des instances dans chaque groupe.
+  Les textes monde sont donc superposés à la scène, sans occlusion par les sprites.
+. Ne pas trier les textes par TextId au détriment de l'ordre de superposition.
+. Même avec un Mutex, prepare(A), prepare(B), draw(A) sur un renderer unique est incorrect :
+  la seconde préparation remplace les données de la première.
+. Encoder draw(A) avant prepare(B) ne suffit pas non plus si les deux préparations
+  réécrivent les mêmes buffers GPU avant queue.submit(). Les writes précèdent les draws.
+. Pour intercaler plus tard plusieurs lots de texte entre des groupes de sprites, prévoir
+  des renderers/buffers distincts par lot préparé, réutilisables après soumission,
+  comme les slots du cache d'instances de sprites. Ne pas ajouter cette complexité en V1.
+
+-- Organisation des fichiers envisagée --
+
+src/backend/text/mod.rs      -> API publique et réexports.
+src/backend/text/context.rs  -> Contexte partagé, initialisation et accès internes.
+src/backend/text/resource.rs -> TextResource, TextDescription et gestion des ressources.
+src/backend/text/draw.rs     -> Préparation et dessin.
+
+. Les types d'instance pourront avoir leur fichier instance.rs si le module grossit.
+
+-- Détails à finaliser lors de l'implémentation --
+
+. Signatures exactes de TextDescription, TextPlacement, set_layout et de la vue de préparation.
+. Choix et chargement des polices, valeurs par défaut et conversion des couleurs.
+. Politique d'erreur pour les IDs invalides et les échecs de préparation/rendu.
+. Conventions précises pour l'ancre, le clipping et les dimensions de layout en espace monde.
+. Gestion de l'état préparé : frame sans texte, préparation échouée ou frame non soumise.
+
+-- Références --
+
+. Glyphon 0.12.0 : https://docs.rs/glyphon/0.12.0/glyphon/
+. cosmic-text 0.19.0 : https://docs.rs/cosmic-text/0.19.0/cosmic_text/

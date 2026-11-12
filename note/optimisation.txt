@@ -23,3 +23,5 @@
 . Migrer tout les conteneurs statique vers des structures Lock Free.
 
 . Proposer une api similaire au dessin de sprites pour les formes géométrique. 
+
+. Faire en sorte de pouvoir config la pass de frame.render().
