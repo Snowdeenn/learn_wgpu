@@ -30,6 +30,34 @@ crate::unique_resource!(CircleMesh, Id<MeshResource>);
 crate::unique_resource!(TriangleMesh, Id<MeshResource>);
 crate::unique_resource!(Fps, f32);
 
+/// CPU timings only: these do not measure GPU execution or presentation waits.
+#[derive(Default)]
+pub struct FrameTimings {
+    pub simulation: CpuTiming,
+    pub preparation: CpuTiming,
+    pub render_encoding: CpuTiming,
+}
+
+#[derive(Default)]
+pub struct CpuTiming {
+    pub last_ms: f64,
+    pub average_ms: f64,
+    initialized: bool,
+}
+
+impl CpuTiming {
+    pub fn record(&mut self, duration: std::time::Duration) {
+        self.last_ms = duration.as_secs_f64() * 1000.0;
+        // Exponential moving average: 10% of the new sample, 90% of the history.
+        self.average_ms = if self.initialized {
+            self.average_ms + 0.1 * (self.last_ms - self.average_ms)
+        } else {
+            self.last_ms
+        };
+        self.initialized = true;
+    }
+}
+
 impl std::fmt::Display for Fps {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.0}", self.0)

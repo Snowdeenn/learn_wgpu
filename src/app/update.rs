@@ -1,6 +1,6 @@
 use super::App;
 use crate::{
-    backend::{self}, camera::Camera2D, particle, scene::resources::{CamBuffer, Fps, SceneRendering},
+    backend::{self}, camera::Camera2D, particle, scene::resources::{CamBuffer, Fps, FrameTimings, SceneRendering},
 };
 use std::time::Instant;
 
@@ -11,21 +11,32 @@ impl App {
             return;
         };
         let now = Instant::now();
-        let dt = self
+        let frame_dt = self
             .last_frame
             .replace(now)
-            .map_or(0.0, |last| now.duration_since(last).as_secs_f32())
-            .min(0.1);
+            .map_or(0.0, |last| now.duration_since(last).as_secs_f32());
+        let dt = frame_dt.min(0.1);
 
         {
-            let fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
-            self.resources.write_resource::<Fps>().0 = fps;
+            if frame_dt > 0.0 {
+                let current_fps = 1.0 / frame_dt;
+                let mut fps = self.resources.write_resource::<Fps>();
+                // Seed with the first valid sample, then smooth subsequent values.
+                fps.0 = if fps.0 > 0.0 {
+                    fps.0 + 0.1 * (current_fps - fps.0)
+                } else {
+                    current_fps
+                };
+            }
 
             let mut rendering = self.resources.write_resource::<SceneRendering>();
             backend::sprite::run_animated(rendering.instances_mut(), dt);
         }
 
+        let start = Instant::now();
         particle::update_effects(dt);
+        let elapsed = start.elapsed();
+        self.resources.write_resource::<FrameTimings>().simulation.record(elapsed);
 
         {
             let mut cam = self.resources.write_resource::<Camera2D>();

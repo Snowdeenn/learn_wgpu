@@ -1,4 +1,5 @@
 use super::resources::*;
+use std::time::Instant;
 use crate::effects::{
     blur::{BlurHorizontalOperation, BlurVerticalOperation},
     composite::CompositionOperation,
@@ -81,8 +82,6 @@ crate::define_render_operation! {
         // quel que soit le mode choisi pour les objets de la scène.
         backend::bind(&*mesh, pass);
 
-        particle::prepare_registered_effects();
-
         particle::for_each_prepared_effect(|instances| {
             shape::draw_all(instances.shape(), pass);
         });
@@ -117,6 +116,12 @@ pub fn prepare_text(
 }
 
 pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassError> {
+    // Prepare before encoding so the two timings do not overlap.
+    let start = Instant::now();
+    particle::prepare_registered_effects();
+    let elapsed = start.elapsed();
+    resources.write_resource::<FrameTimings>().preparation.record(elapsed);
+
     let mode = *resources.read_resource::<ScenePipeline>();
     let pipelines = *resources.read_resource::<ScenePipelines>();
     let mut rendering = resources.write_resource::<SceneRendering>();
@@ -192,7 +197,11 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
     ));
 
     let SceneRendering { passes, data, .. } = &mut *rendering;
-    frame.execute(passes, data)
+    let start = Instant::now();
+    let result = frame.execute(passes, data);
+    let elapsed = start.elapsed();
+    resources.write_resource::<FrameTimings>().render_encoding.record(elapsed);
+    result
 }
 
 fn draw_sprites<T: SpriteInstance>(

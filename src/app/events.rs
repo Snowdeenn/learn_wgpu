@@ -3,7 +3,7 @@ use crate::{
     backend::renderer::Renderer,
     camera::Camera2DController,
     debug::DebugManager,
-    scene::{self, resources::Fps},
+    scene::{self, resources::{Fps, FrameTimings}},
 };
 use std::sync::Arc;
 use winit::{
@@ -42,6 +42,7 @@ impl ApplicationHandler for App {
         self.cam_controller = Some(Camera2DController::new(250.0));
 
         self.resources.insert(Fps(0.0));
+        self.resources.insert(FrameTimings::default());
     }
 
     fn window_event(

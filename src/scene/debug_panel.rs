@@ -1,4 +1,4 @@
-use super::resources::{CircleMesh, Fps, RectMesh, ScenePipeline, SceneRendering, TriangleMesh};
+use super::resources::{CircleMesh, Fps, FrameTimings, RectMesh, ScenePipeline, SceneRendering, TriangleMesh};
 use crate::core::Resources;
 use crate::debug::DebugManager;
 
@@ -11,6 +11,21 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
         .show(|w| {
             w.metric("FPS", &fps);
             w.ui.separator();
+
+            w.create_widget("Temps CPU")
+                .header(true)
+                .show(|w| {
+                    let timings = rs.read_resource::<FrameTimings>();
+                    for (label, timing) in [
+                        ("Simulation particules", &timings.simulation),
+                        ("Préparation particules", &timings.preparation),
+                        ("Encodage des passes", &timings.render_encoding),
+                    ] {
+                        w.metric(label, format!("{:.3} ms", timing.average_ms));
+                    }
+                    w.ui.small("Moyenne lissée : 10 % de la nouvelle mesure.");
+                    w.ui.small("Temps CPU uniquement, hors exécution GPU et attente de présentation.");
+                });
 
             w.create_widget("Rendu de la scène")
                 .header(true)
