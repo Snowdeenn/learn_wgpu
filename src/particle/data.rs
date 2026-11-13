@@ -36,10 +36,12 @@ impl ParticleData {
         self.pos.len()
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn is_empty(&self) -> bool {
         self.pos.is_empty()
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn resize(&mut self, count: usize) {
         self.pos.resize(count, [0.0; 2]);
         self.scale.resize(count, [1.0; 2]);
@@ -61,6 +63,7 @@ pub enum Access<'a, T> {
 
 macro_rules! particle_view {
     ($($field:ident: $ty:ty => $bit:path),+ $(,)?) => {
+        #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
         pub struct ParticleView<'a> {
             $(pub $field: Option<Access<'a, $ty>>),+
         }

@@ -4,8 +4,6 @@ use crate::{
 };
 use std::time::Instant;
 
-const ANIMATION_FPS: f32 = 8.0;
-
 impl App {
     pub(super) fn update(&mut self) {
         let (Some(window), Some(controller)) = (self.window.as_ref(), self.cam_controller.as_mut())

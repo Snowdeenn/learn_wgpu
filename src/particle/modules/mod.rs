@@ -1,4 +1,4 @@
-use crate::backend::instance::Instance;
+use crate::backend::instances::Instance;
 use crate::particle::data::ParticleView;
 use new_collection::Id;
 use rand::distr::Distribution;
@@ -22,19 +22,26 @@ mod tests;
 mod trail;
 mod velocity;
 
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use animated_sprite::*;
 pub use forces::*;
 pub use over_lifetime::*;
 pub use rotation::*;
 pub use spawn::*;
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use trail::*;
 
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use accel::InitAccel;
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use color::InitColor;
 pub use lifetime::*;
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use position::*;
 pub use render::*;
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use scale::*;
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use velocity::InitVelocity;
 
 pub trait InitModule: Send + Sync {

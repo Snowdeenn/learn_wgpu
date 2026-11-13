@@ -1,5 +1,5 @@
 use crate::backend::{
-    instance::{Instance, InstanceData},
+    instances::{Instance, InstanceData},
     texture::{AtlasRegion, TextureResource},
 };
 use new_collection::Id;
@@ -24,6 +24,7 @@ pub enum Sprite {
         texture: Id<TextureResource>,
         indices: std::ops::Range<u32>,
     },
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Array {
         texture: Id<TextureResource>,
         layer: u32,

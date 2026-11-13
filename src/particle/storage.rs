@@ -33,6 +33,7 @@ pub(crate) fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOu
     }
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub fn remove_effect(id: Id<EffectInstance>) -> bool {
     let removed = effect_storage().write().unwrap().remove(id);
     removed.is_some()

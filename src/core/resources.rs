@@ -18,6 +18,7 @@ pub struct Resources {
 
 impl Resources {
     /// Crée une nouvelle instance vide du registre de ressources.
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn new() -> Self {
         Self::default()
     }

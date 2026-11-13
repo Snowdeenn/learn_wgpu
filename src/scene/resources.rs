@@ -1,7 +1,7 @@
 use super::instance::Dummy;
 use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
 use crate::backend::frame_data::FrameData;
-use crate::backend::instance::InstanceId;
+use crate::backend::instances::InstanceId;
 use crate::backend::pass::PassList;
 use crate::backend::shape::MeshResource;
 use crate::geometry::mesh::Vertex;
@@ -23,7 +23,7 @@ pub enum ScenePipeline {
     Texture,
 }
 
-pub type InstanceData = crate::backend::instance::InstanceData<Dummy>;
+pub type InstanceData = crate::backend::instances::InstanceData<Dummy>;
 crate::unique_resource!(IndexCount, u32);
 crate::unique_resource!(RectMesh, Id<MeshResource>);
 crate::unique_resource!(CircleMesh, Id<MeshResource>);

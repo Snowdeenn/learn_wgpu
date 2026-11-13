@@ -93,7 +93,7 @@ impl Renderer {
         });
 
         Ok(Some(Frame {
-            window: window,
+            window,
             texture_surface: frame,
             view,
             encoder,
@@ -146,7 +146,7 @@ impl<'a> Frame<'a> {
 
     pub fn finish(self) {
         context::queue().submit([self.encoder.finish()]);
-        super::sprite::submitted();
+        super::instances::submitted();
         super::text::submitted();
         self.window.pre_present_notify();
         context::queue().present(self.texture_surface);

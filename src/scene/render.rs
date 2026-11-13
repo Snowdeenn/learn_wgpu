@@ -13,7 +13,7 @@ use crate::{
 
 use super::instance::Dummy;
 use crate::backend::{
-    instance::InstanceId,
+    instances::InstanceId,
     pass::{self, PassError, PassTarget},
     pipeline,
     renderer::Frame,
@@ -47,8 +47,8 @@ crate::define_render_operation! {
             }
             ScenePipeline::Texture => {
                 draw_sprites(
-                    &*texture,
-                    &*texture_array,
+                    &texture,
+                    &texture_array,
                     pass,
                     &mut instances.data,
                 );
@@ -87,8 +87,8 @@ crate::define_render_operation! {
 
         particle::for_each_prepared_effect(|instances| {
             draw_sprites(
-                &*texture,
-                &*texture_array,
+                &texture,
+                &texture_array,
                 pass,
                 instances.sprite(),
             );
@@ -133,7 +133,7 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
     };
 
     let particle_op = ParticleOperation {
-        pipelines: pipelines,
+        pipelines,
     };
 
     let blur_vertical = BlurVerticalOperation {

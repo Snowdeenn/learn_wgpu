@@ -28,6 +28,7 @@ pub fn group(id: TextureBindingSetId) -> Result<wgpu::BindGroup, BindingSetError
     Ok(set.group.clone())
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub fn remove(id: TextureBindingSetId) -> bool {
     let mut sets = storage().lock().unwrap();
     if sets.get(id).is_none() {

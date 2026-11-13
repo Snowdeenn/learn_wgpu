@@ -4,7 +4,7 @@ use crate::backend::{
     binding_set::{self, TextureBinding},
     context,
     frame_data::FrameData,
-    instance::{Instance, InstanceId},
+    instances::{Instance, InstanceId},
     pipeline::{self, compute},
     target::{self, TargetSize},
 };

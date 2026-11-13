@@ -260,7 +260,7 @@ Ju veux rendre ces briques réutilisables pour ajouter des effets et des cibles 
 
 Ces extraits décrivent une API à construire, pas du code Rust complet à copier/compiler.
 Les noms de constructeurs et les signatures restent ajustables. InstanceStorage existe déjà
-dans src/backend/instance.rs avec insert et get_mut ; les autres helpers ci-dessous sont proposés.
+dans src/backend/instances/mod.rs avec insert et get_mut ; les autres helpers ci-dessous sont proposés.
 Les identifiants sont supposés copiables dans ces exemples. Les stockages globaux peuvent
 rester dans le backend ; des paramètres explicites sont montrés pour rendre les accès lisibles.
 RenderResources est un accès temporaire aux stockages, pas un second propriétaire des ressources.

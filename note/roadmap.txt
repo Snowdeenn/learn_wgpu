@@ -49,7 +49,7 @@ Etat au 05/11/2026. FAIT indique une fonctionnalité présente dans le code.
 . Compute shaders et particules GPU.
 . Rendu indirect.
 . Profiling CPU/GPU.
-. Render graph.
+. Render graph. (pas a faire si pas nécessaire)
 . Gestion des ressources à grande échelle et optimisation mesurée.
 . Projet : mini-moteur réutilisable capable de gérer de grandes scènes.
 

@@ -187,7 +187,7 @@ text::submitted();
   les placements, construit les TextArea puis appelle Glyphon pour préparer le dessin.
 . draw_all dessine les données déjà préparées. Glyphon gère son pipeline et ses bindings.
 . submitted est le point d'entretien de fin de frame pour l'atlas, sur le modèle du hook
-  backend::sprite::submitted existant. Il intervient après la soumission GPU.
+  backend::instances::submitted existant. Il intervient après la soumission GPU.
 . Première version : une préparation de tous les textes et un dessin par frame.
 . Ordre initial : scène/sprites/particules, textes monde, textes écran, debug egui.
   Préparer les textes dans cet ordre ; conserver l'ordre des instances dans chaque groupe.

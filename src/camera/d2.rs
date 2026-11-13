@@ -41,6 +41,7 @@ impl Camera2D {
     }
 
     /// Physical pixels per world unit. Panics for nonpositive or nonfinite values.
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn set_zoom(&mut self, zoom: f32) {
         assert!(
             zoom.is_finite() && zoom > 0.0,

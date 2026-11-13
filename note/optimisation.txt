@@ -22,6 +22,197 @@
 
 . Migrer tout les conteneurs statique vers des structures Lock Free.
 
-. Proposer une api similaire au dessin de sprites pour les formes géométrique. 
+. Proposer une api similaire au dessin de sprites pour les formes géométrique. FAIT.
 
-. Faire en sorte de pouvoir config la pass de frame.render().
+. Faire en sorte de pouvoir config la pass de frame.render(). PAS BESOIN.
+
+
+-- Pistes issues de la lecture du code au 13/11/2026 --
+
+Les observations ci-dessous décrivent le code actuel, sans benchmark. Les priorités sont
+des points de départ : mesurer le temps CPU/GPU et la mémoire avant de choisir une refonte.
+Les chemins sont relatifs à la racine du projet. Aucun de ces changements n'est encore appliqué.
+
+1. Mesures à ajouter
+
+. Ajouter des compteurs par frame : instances visibles/envoyées, batches, draw calls,
+  changements de pipeline, appels write_buffer et octets envoyés, pages GPU et capacité des caches.
+  Sources : src/backend/instances/cache.rs, sprite/draw.rs, shape.rs, buffer.rs et scene/render.rs.
+  Les FPS seuls ne permettent pas de distinguer la simulation CPU, le rendu et l'attente de présentation.
+  Mesurer séparément update, préparation des instances, préparation du texte et encodage des passes.
+
+. Donner des labels aux passes concrètes et mesurer leur durée GPU si l'adaptateur permet
+  les timestamp queries. Comparer avec/sans flou, plusieurs résolutions et nombres de particules.
+  Sources : src/backend/pass/list.rs, pass/builder.rs et renderer.rs.
+  Le temps CPU autour d'un draw ne mesure pas le travail asynchrone du GPU.
+
+2. Travail CPU répété : à traiter en premier
+
+. Préparer les sorties de particules une seule fois par frame.
+  ParticleOperation appelle for_each_prepared_effect une fois pour les formes puis une fois pour
+  les sprites. Chaque appel relance EffectInstance::prepare pour TOUS les modules de rendu,
+  vide les deux listes et les reconstruit. Les formes, sprites et segments de traînée sont donc
+  produits deux fois même si chaque boucle n'utilise qu'une partie du résultat.
+  Sources : src/scene/render.rs, src/particle/storage.rs et src/particle/effect.rs.
+  Séparer préparation et visite des sorties préparées. Préserver l'ordre actuel de dessin
+  (toutes les formes puis tous les sprites) si cet ordre est intentionnel.
+
+. Conserver la liste des passes et leurs opérations entre les frames.
+  scene::render::render appelle clear puis reconstruit les six opérations boxées à chaque frame.
+  Le Vec conserve sa capacité, mais les Box sont détruites puis réallouées.
+  Source : src/scene/render.rs et src/backend/pass/mod.rs.
+  Construire la liste lors de l'initialisation et ne modifier que le mode/données nécessaires,
+  ou la reconstruire seulement lorsque la configuration des effets change.
+
+. Recalculer les poids du flou uniquement lorsque les réglages changent.
+  BlurEffect::prepare calcule deux fois le même noyau via params et effectue deux écritures GPU
+  à chaque frame. Seule la direction diffère entre les deux uniforms.
+  Sources : src/effects/blur.rs et src/scene/debug_panel.rs.
+  Calculer le noyau une fois, dériver les deux directions, et conserver une révision/dirty flag
+  pour éviter les uploads inchangés. Ne pas partager une même région réécrite entre les deux draws.
+
+. Éviter de résoudre les trois pipelines de scène quand un seul mode les utilise.
+  SceneOperation récupère mesh, texture et texture_array avant son match.
+  Source : src/scene/render.rs ; chaque pipeline::get prend un verrou puis clone un Arc.
+  Résoudre uniquement le ou les contextes nécessaires au mode actif.
+
+3. Instances, batching et transferts
+
+. Réutiliser les vecteurs de batches plutôt que retourner un nouveau Vec à chaque dessin.
+  Sources : src/backend/sprite/batch.rs et src/backend/shape.rs.
+  Une API batch_into avec un Vec de travail réutilisé évite les allocations répétées.
+  Pour les listes statiques, conserver aussi les batches tant que leurs clés/ordre ne changent pas.
+  Les particules animées et les règles de transparence doivent invalider ce cache si nécessaire.
+
+. Réduire les acquisitions du stockage de textures pendant la résolution des UV d'atlas.
+  cache::prepare reprend le RwLock et retrouve l'atlas/la région pour chaque instance.
+  Source : src/backend/instances/cache.rs.
+  Résoudre les données nécessaires par batch ou par ressource, puis convertir les instances
+  sans reprendre un verrou pour chaque élément. Ne pas tenir ce verrou pendant un chemin qui le reprend.
+
+. Regrouper les uploads d'instances lorsque le nombre de petits batches devient élevé.
+  Chaque batch convertit ses instances et appelle queue.write_buffer sur son propre slot.
+  Sources : src/backend/instances/cache.rs, sprite/draw.rs et src/backend/shape.rs.
+  Mesurer les appels et octets transférés ; envisager un staging réutilisable et des régions distinctes
+  écrites en amont. Conserver des données distinctes pour les draws d'une même soumission.
+  Un grand buffer commun n'est pas obligatoire : plusieurs buffers peuvent rester pertinents.
+
+. Prévoir le cas d'un batch qui dépasse une page de l'allocateur.
+  BufferArena limite chaque allocation à 1 Mio ; InstanceSlot arrondit sa capacité à la puissance
+  de deux supérieure, puis unwrap l'allocation. Un gros batch peut donc paniquer.
+  Sources : src/backend/buffer.rs et src/backend/instances/cache.rs.
+  Définir une politique : allocations dédiées plus grandes ou découpage des batches,
+  en respectant les limites de binding du device et en corrigeant aussi le problème range.end déjà noté.
+
+. Faire du culling avant conversion/upload des instances hors caméra.
+  Les chemins de dessin parcourent actuellement toutes les instances reçues.
+  Sources : src/scene/render.rs, src/backend/shape.rs et src/camera/d2.rs.
+  Compacter une liste visible sans supprimer les particules de la simulation.
+  Pour la fumée, élargir les bornes par le rayon effectif du flou ; tenir compte de la rotation,
+  de l'échelle et des traînées pour ne pas couper un effet encore visible.
+
+4. Passes hors écran et flou GPU
+
+. Éviter les deux passes de flou lorsque le noyau normalisé est une identité.
+  Aujourd'hui rayon 0 ou espacement 0 conserve les passes plein écran.
+  Sources : src/scene/render.rs et src/effects/blur.rs.
+  Les particules sont déjà dans A : composer directement A dans ce cas.
+  Attention aux poids manuels non normalisés : ces réglages peuvent aussi modifier couleur/alpha ;
+  supprimer les passes changerait alors le résultat. Tester le noyau réellement appliqué.
+
+. Ajouter une politique de résolution réduite pour la fumée et ses intermédiaires.
+  Les deux cibles du flou sont actuellement à la résolution complète de la fenêtre.
+  Sources : src/effects/blur.rs et src/backend/target/mod.rs.
+  Tester demi/quart de résolution puis agrandir pendant la composition, avec une politique
+  proportionnelle conservée au resize. Ajuster l'espacement : un texel de la cible réduite
+  couvre plusieurs pixels de fenêtre. Vérifier la projection de caméra et la qualité des contours.
+
+. Réduire la zone traitée quand les particules occupent une petite partie de l'écran.
+  Les passes de flou et de composition utilisent actuellement un triangle plein écran.
+  Sources : src/effects/blur.rs et src/effects/composite.rs.
+  Tester une cible locale ou une zone de rendu bornée, élargie pour les deux étapes du flou.
+  Un simple scissor sans gestion du nettoyage et des dépendances peut conserver des pixels périmés
+  ou supprimer des contributions nécessaires : traiter correctement les marges et le mapping UV.
+
+. Pour un noyau large, étudier le regroupement d'échantillons voisins via le filtrage linéaire.
+  Le shader effectue actuellement 2 * rayon + 1 lectures par pixel et par passe.
+  Source : assets/shaders/blur.wgsl ; le sampler est déjà filtrant.
+  Pour deux poids positifs voisins, leur somme et une position interpolée permettent de remplacer
+  deux lectures par une lecture linéaire. Vérifier les conditions d'espacement (notamment 1 texel),
+  les bords et le mode manuel ; conserver le chemin général pour les configurations incompatibles.
+
+5. Caches, stockages et mémoire
+
+. Éviter les allocations temporaires lors du refresh inchangé des bindings.
+  Chaque binding_set::group appelle refresh ; resolve_sources construit un Vec d'Arc,
+  puis refresh construit un Vec de révisions, même si aucune texture n'a changé.
+  Sources : src/backend/binding_set/mod.rs et storage.rs.
+  Réutiliser les buffers de travail ou comparer sans nouvelle allocation, puis reconstruire le groupe
+  uniquement si nécessaire. La reconstruction GPU après resize est déjà conditionnée aux révisions.
+
+. Réutiliser les BindGroupLayout compatibles, notamment pour les slots d'instances.
+  InstanceSlot::new appelle bind_group!, qui crée un nouveau layout en même temps que le groupe.
+  Sources : src/backend/instances/cache.rs et src/backend/bind_group.rs.
+  Conserver un layout commun pour ce format au lieu de le recréer à chaque nouveau slot/agrandissement.
+  Même possibilité pour les directions du flou et les lectures texture + sampler des effets.
+  Cela concerne les créations/agrandissements, pas nécessairement chaque frame.
+
+. Suivre le pic et la rétention de mémoire du cache d'instances.
+  InstanceCache conserve tous les slots et leurs capacités maximales après un pic de batches.
+  BufferArena ne réutilise les trous d'une page que lorsque toutes ses allocations sont libérées,
+  et conserve ensuite le buffer de la page pour réemploi.
+  Sources : src/backend/instances/cache.rs et src/backend/buffer.rs.
+  Mesurer capacité utile/réservée, fragmentation et slots inutilisés ; ajouter si nécessaire
+  une réduction différée, une free list de régions ou une purge de pages inutilisées.
+
+. Prévoir une destruction explicite des ressources appartenant aux effets retirés/recréés.
+  BlurEffect crée deux cibles, deux ensembles de bindings, un pipeline et deux allocations uniform.
+  Les IDs ne suppriment pas automatiquement les entrées globales ; Buffer n'a pas de Drop libérant
+  son allocation logique. Même principe pour les ressources de PresentEffect et CompositeEffect.
+  Sources : src/effects/{blur,composite,present}.rs et les fonctions remove/delete_buffer du backend.
+  Définir un démontage tenant compte des ressources partagées. À traiter surtout avant chargements
+  de scènes répétés ou création/destruction dynamique d'effets, pas comme une fuite par frame.
+
+. Réduire la portée/fréquence des verrous avant d'envisager du lock-free.
+  Les boucles de particules gardent le verrou de stockage pendant préparation et dessin ;
+  les chemins d'atlas/buffers prennent aussi des verrous fins à répétition.
+  Sources : src/particle/storage.rs, src/backend/instances/cache.rs et src/backend/buffer.rs.
+  Mesurer la contention et envisager des phases de préparation avec accès regroupés.
+  Le remplacement systématique de tous les conteneurs par du lock-free, évoqué plus haut,
+  n'est pas une optimisation démontrée : le rendu est actuellement principalement piloté sur un thread.
+
+6. Texte et simulation
+
+. Réutiliser les listes temporaires de préparation du texte et sa taille de layout.
+  ordered_instances alloue/trie un Vec et prepare alloue les TextArea à chaque frame ;
+  TextResource::size reparcourt les lignes pour chaque placement, même pour un TextId répété.
+  Sources : src/backend/text/draw.rs et resource.rs.
+  Réutiliser les capacités où les emprunts le permettent, mettre en cache les dimensions avec
+  invalidation sur contenu/layout et ne shaper qu'une fois les IDs répétés.
+  Ne pas confondre cet overhead avec un reshaping complet : cosmic-text conserve déjà les buffers
+  et shape_until_scroll ne refait pas systématiquement les textes inchangés.
+
+. Regrouper les particules de plusieurs effets compatibles pour diminuer les petits batches.
+  Le rendu dessine actuellement les sorties de chaque effet séparément.
+  Sources : src/particle/storage.rs et src/scene/render.rs.
+  Une préparation commune par destination/matériau peut regrouper les uploads et les dessins.
+  Respecter la superposition et l'isolation des effets qui doivent recevoir un post-traitement différent.
+
+. Rendre optionnels les canaux coûteux de ParticleData selon les modules réellement utilisés.
+  Tous les effets allouent toutes les listes, dont un VecDeque de traînée par particule,
+  et la compaction échange tous les canaux même si certains sont inutilisés.
+  Sources : src/particle/data.rs et src/particle/effect.rs.
+  Mesurer la mémoire avec beaucoup de particules sans traînées avant de complexifier ce stockage.
+
+. Pour les traînées très nombreuses, comparer les VecDeque individuels à un historique circulaire
+  préalloué ou à un stockage regroupé. RenderTrail produit une instance par segment et calcule
+  longueur/angle à chaque préparation.
+  Sources : src/particle/modules/trail.rs et src/particle/effect.rs.
+  Mesurer segments, allocations et temps de préparation ; limiter/rééchantillonner l'historique
+  selon la distance parcourue si la qualité visuelle reste acceptable.
+
+. Garder l'update et les paramètres GPU inchangés hors des uploads inutiles.
+  La matrice caméra est recalculée et écrite à chaque update, même sans déplacement/resize.
+  Source : src/app/update.rs. Un dirty flag caméra/résolution peut éviter ce travail.
+  La simulation GPU, le parallélisme et les changements de représentation restent des pistes
+  ultérieures si les mesures montrent que les modules CPU dominent réellement le coût.

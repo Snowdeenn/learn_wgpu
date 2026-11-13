@@ -72,7 +72,7 @@ pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::Ima
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        &image_byte,
+        image_byte,
         wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(4 * width),

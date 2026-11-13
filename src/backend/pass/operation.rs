@@ -20,15 +20,18 @@ pub trait ComputeOperation {
 
 /// Each operation binds its own state before drawing into the same attachment.
 #[derive(Default)]
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub struct RenderSequence {
     pub operations: Vec<Box<dyn RenderOperation>>,
 }
 
 impl RenderSequence {
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn new(operations: Vec<Box<dyn RenderOperation>>) -> Self {
         Self { operations }
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn push(&mut self, operation: impl RenderOperation + 'static) {
         self.operations.push(Box::new(operation));
     }

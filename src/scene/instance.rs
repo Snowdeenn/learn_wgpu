@@ -1,4 +1,4 @@
-use crate::backend::{self, Sprite, instance::Instance};
+use crate::backend::{self, Sprite, instances::Instance};
 
 pub struct Dummy {
     pub mesh: new_collection::Id<backend::shape::MeshResource>,

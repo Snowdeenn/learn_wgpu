@@ -7,16 +7,19 @@ use crate::particle::data::{Access, ParticleView};
 #[derive(Clone, Copy)]
 pub enum SpawnRegion {
     Volume,
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Surface,
 }
 
 #[derive(Clone, Copy)]
 pub enum PositionShape {
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Point([f32; 2]),
     Circle {
         center: [f32; 2],
         radius: f32,
     },
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Rectangle {
         center: [f32; 2],
         half_extents: [f32; 2],
@@ -108,6 +111,7 @@ impl InitModule for ConeVelocity {
 }
 
 /// Run after position initialization. The center is local to the emitter.
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub struct RadialVelocity {
     pub center: [f32; 2],
     pub min_speed: f32,

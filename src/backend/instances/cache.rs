@@ -1,6 +1,6 @@
 use std::sync::{Mutex, OnceLock};
 
-use super::{RenderInstance, SpriteInstance};
+use crate::backend::{RenderInstance, Sprite, SpriteInstance};
 use crate::backend::buffer::{self, Buffer, StorageRead};
 
 struct InstanceSlot {
@@ -34,7 +34,7 @@ struct InstanceCache {
 
 static CACHE: OnceLock<Mutex<InstanceCache>> = OnceLock::new();
 
-pub(super) fn prepare<T: SpriteInstance>(
+pub(in crate::backend) fn prepare<T: SpriteInstance>(
     instances: &[T],
     range: std::ops::Range<u32>,
 ) -> wgpu::BindGroup {
@@ -42,7 +42,7 @@ pub(super) fn prepare<T: SpriteInstance>(
         .iter()
         .map(|instance| {
             let mut render = instance.render_instance();
-            if let super::Sprite::Atlas {
+            if let Sprite::Atlas {
                 texture, region, ..
             } = instance.sprite()
             {

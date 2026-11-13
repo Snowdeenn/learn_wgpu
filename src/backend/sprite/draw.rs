@@ -51,9 +51,10 @@ fn prepare_instance<T: SpriteInstance>(
     instances: &mut [T],
     range: std::ops::Range<u32>,
 ) -> wgpu::BindGroup {
-    super::cache::prepare(instances, range)
+    crate::backend::instances::cache::prepare(instances, range)
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub fn draw_all<T: SpriteInstance>(
     instances: &mut [T],
     pass: &mut wgpu::RenderPass<'_>,

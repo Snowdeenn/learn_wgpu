@@ -40,6 +40,7 @@ where
         self.held.contains(&button)
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     fn is_just_pressed(&self, button: T) -> bool {
         self.just_pressed.contains(&button)
     }
@@ -73,6 +74,7 @@ impl Input {
         self.keyboard.is_pressed(key_code)
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn is_just_pressed(&self, key_code: KeyCode) -> bool {
         self.keyboard.is_just_pressed(key_code)
     }
@@ -85,14 +87,17 @@ impl Input {
         self.mouse.release(button);
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
         self.mouse.is_pressed(button)
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn is_mouse_just_pressed(&self, button: MouseButton) -> bool {
         self.mouse.is_just_pressed(button)
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn is_mouse_released(&self, button: MouseButton) -> bool {
         !self.mouse.is_pressed(button)
     }
@@ -101,6 +106,7 @@ impl Input {
         self.mouse_position = (x, y);
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn mouse_position(&self) -> (f32, f32) {
         self.mouse_position
     }

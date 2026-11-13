@@ -8,6 +8,7 @@ mod tests;
 pub use crate::backend::target::PassTarget;
 pub use builder::*;
 pub use list::{PassList, execute};
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use operation::{ComputeOperation, RenderOperation, RenderSequence};
 
 use crate::backend::{binding_set::BindingSetError, target::RenderTargetId, text::TextError};
@@ -19,6 +20,7 @@ pub enum PassContext {
         store: wgpu::StoreOp,
         operation: Box<dyn RenderOperation>,
     },
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Compute {
         operation: Box<dyn ComputeOperation>,
     },
@@ -37,6 +39,7 @@ pub fn render(
     }
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub fn compute(operation: impl ComputeOperation + 'static) -> PassContext {
     PassContext::Compute {
         operation: Box::new(operation),

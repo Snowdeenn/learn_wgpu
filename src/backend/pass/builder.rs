@@ -45,7 +45,7 @@ impl<'a> ColorAttachmentDescriptorBuilder<'a> {
 
     /// Specify the resolve target for this render pass color attachment.
     pub fn with_resolve_target(mut self, target: Option<&'a wgpu::TextureView>) -> Self {
-        self.descriptor.resolve_target = target.map(|t| &*t);
+        self.descriptor.resolve_target = target;
         self
     }
 

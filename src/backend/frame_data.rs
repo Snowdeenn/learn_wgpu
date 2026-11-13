@@ -1,4 +1,4 @@
-use super::{instance::InstanceStorage, text::Text};
+use super::{instances::InstanceStorage, text::Text};
 
 /// Persistent CPU instances. GPU resources stay in their dedicated storages.
 #[derive(Default)]

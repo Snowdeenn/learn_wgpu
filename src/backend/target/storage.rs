@@ -24,6 +24,7 @@ pub fn get(id: RenderTargetId) -> Option<Arc<RenderTarget>> {
     storage().read().unwrap().get(id).cloned()
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub fn remove(id: RenderTargetId) -> bool {
     let mut targets = storage().write().unwrap();
     if targets.get(id).is_none() {

@@ -1,5 +1,6 @@
 mod storage;
 
+#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
 pub use storage::{TextureBindingSetId, group, register, remove};
 
 use std::sync::Arc;

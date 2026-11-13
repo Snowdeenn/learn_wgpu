@@ -417,7 +417,7 @@ impl BufferArena {
         let alloc = self.allocations.get(buffer.alloc_id).unwrap();
         let page = self.pages.get(alloc.page).unwrap();
         let total_offset = alloc.offset.checked_add(offset).expect("u64 overflow");
-        let data_size = std::mem::size_of::<T>() * data.len();
+        let data_size = std::mem::size_of_val(data);
 
         if total_offset >= page.size {
             panic!(

@@ -1,3 +1,7 @@
+pub(super) mod cache;
+
+pub(crate) use cache::submitted;
+
 use new_collection::{Arena, Id};
 use std::{
     any::Any,
@@ -53,6 +57,7 @@ pub struct InstanceStorage {
 }
 
 impl InstanceStorage {
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn new() -> Self {
         Self::default()
     }
@@ -65,6 +70,7 @@ impl InstanceStorage {
     }
 
     /// IDs belong to the storage that created them.
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn get<T: Instance>(&self, id: &InstanceId<T>) -> Option<&InstanceData<T>> {
         self.data.get(id.raw)?.downcast_ref()
     }
@@ -73,6 +79,7 @@ impl InstanceStorage {
         self.data.get_mut(id.raw)?.downcast_mut()
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn remove<T: Instance>(&mut self, id: &InstanceId<T>) -> Option<InstanceData<T>> {
         // Check before removing: Arena::remove must not be called twice on an empty slot.
         self.get(id)?;

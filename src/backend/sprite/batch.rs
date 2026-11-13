@@ -24,11 +24,12 @@ pub fn batch<T: SpriteInstance>(
         let indices = first_index..end_index;
         let index = start + offset as u32;
 
-        if let Some(last) = batches.last_mut() {
-            if last.resource == resource && last.indices == indices {
-                last.range.end = index + 1;
-                continue;
-            }
+        if let Some(last) = batches.last_mut()
+            && last.resource == resource
+            && last.indices == indices
+        {
+            last.range.end = index + 1;
+            continue;
         }
 
         batches.push(Batch {

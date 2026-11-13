@@ -22,6 +22,7 @@ impl InitModule for RandomLifetime {
     }
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub struct InitAge;
 
 impl InitModule for InitAge {

@@ -4,7 +4,9 @@ pub enum WidgetKind {
     Window,
     Header { default_open: bool },
     Group,
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Horizontal,
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     Vertical,
 }
 
@@ -45,6 +47,7 @@ impl<'a> WidgetBuilder<'a> {
 
     // --- Méthodes du Builder ---
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn kind(mut self, kind: WidgetKind) -> Self {
         self.kind = kind;
         self
@@ -60,16 +63,19 @@ impl<'a> WidgetBuilder<'a> {
         self
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn group(mut self) -> Self {
         self.kind = WidgetKind::Group;
         self
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn horizontal(mut self) -> Self {
         self.kind = WidgetKind::Horizontal;
         self
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn vertical(mut self) -> Self {
         self.kind = WidgetKind::Vertical;
         self
@@ -80,11 +86,13 @@ impl<'a> WidgetBuilder<'a> {
         self
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
         self
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub fn collapsible(mut self, collapsible: bool) -> Self {
         self.collapsible = collapsible;
         self

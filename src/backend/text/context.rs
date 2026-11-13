@@ -8,6 +8,7 @@ use super::resource::TextResource;
 pub(super) struct TextContext {
     pub(super) font_system: glyphon::FontSystem,
     pub(super) swash_cache: glyphon::SwashCache,
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     cache: glyphon::Cache,
     pub(super) viewport: glyphon::Viewport,
     pub(super) atlas: glyphon::TextAtlas,
@@ -64,58 +65,72 @@ impl TextContext {
         }
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn font_system(&self) -> &glyphon::FontSystem {
         &self.font_system
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn font_system_mut(&mut self) -> &mut glyphon::FontSystem {
         &mut self.font_system
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn swash_cache(&self) -> &glyphon::SwashCache {
         &self.swash_cache
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn swash_cache_mut(&mut self) -> &mut glyphon::SwashCache {
         &mut self.swash_cache
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn cache(&self) -> &glyphon::Cache {
         &self.cache
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn cache_mut(&mut self) -> &mut glyphon::Cache {
         &mut self.cache
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn viewport(&self) -> &glyphon::Viewport {
         &self.viewport
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn viewport_mut(&mut self) -> &mut glyphon::Viewport {
         &mut self.viewport
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn atlas(&self) -> &glyphon::TextAtlas {
         &self.atlas
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn atlas_mut(&mut self) -> &mut glyphon::TextAtlas {
         &mut self.atlas
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn renderer(&self) -> &glyphon::TextRenderer {
         &self.renderer
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn renderer_mut(&mut self) -> &mut glyphon::TextRenderer {
         &mut self.renderer
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn texts(&self) -> &Arena<TextResource> {
         &self.texts
     }
 
+    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
     pub(super) fn texts_mut(&mut self) -> &mut Arena<TextResource> {
         &mut self.texts
     }
@@ -147,6 +162,7 @@ pub fn init(format: wgpu::TextureFormat) -> Result<(), InitError> {
 }
 
 /// Locks the text context. Do not call while already holding its guard.
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub(super) fn context() -> MutexGuard<'static, TextContext> {
     CONTEXT
         .get()

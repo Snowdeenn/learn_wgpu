@@ -1,4 +1,4 @@
-pub fn bind<'a>(ctx: &'a impl PipelineContext, pass: &mut wgpu::RenderPass<'_>) {
+pub fn bind(ctx: &impl PipelineContext, pass: &mut wgpu::RenderPass<'_>) {
     pass.set_pipeline(ctx.pipeline());
 
     for (i, group) in ctx.bind_groups().iter().enumerate() {

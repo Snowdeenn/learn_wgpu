@@ -4,8 +4,8 @@ use std::sync::{OnceLock, RwLock};
 use new_collection::{Arena, Id};
 
 use super::buffer::{self, Buffer, Index, Vertex};
-use super::{RenderInstance, sprite::cache};
-use crate::backend::instance::Instance;
+use super::{RenderInstance, instances::cache};
+use crate::backend::instances::Instance;
 use crate::geometry::mesh::{Mesh, Vertex as MeshVertex};
 
 pub struct MeshResource {
@@ -53,6 +53,7 @@ pub trait ShapeInstance: Instance {
     fn render_instance(&self) -> RenderInstance;
 }
 
+#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub struct Shape {
     pub mesh: Id<MeshResource>,
     pub position: [f32; 2],
@@ -94,11 +95,11 @@ pub fn batch<T: ShapeInstance>(instances: &mut [T], range: Range<u32>) -> Vec<Ba
     for (offset, instance) in slice.iter().enumerate() {
         let mesh = instance.mesh();
         let index = start + offset as u32;
-        if let Some(last) = batches.last_mut() {
-            if last.mesh == mesh {
-                last.range.end = index + 1;
-                continue;
-            }
+        if let Some(last) = batches.last_mut()
+            && last.mesh == mesh
+        {
+            last.range.end = index + 1;
+            continue;
         }
         batches.push(Batch {
             mesh,
