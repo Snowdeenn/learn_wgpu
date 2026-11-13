@@ -1,3 +1,4 @@
+use crate::backend::instance::Instance;
 use crate::particle::data::ParticleView;
 use new_collection::Id;
 use rand::distr::Distribution;
@@ -64,6 +65,8 @@ pub struct ParticleSpriteInstance {
     pub sprite: Sprite,
 }
 
+impl Instance for ParticleSpriteInstance {}
+
 impl SpriteInstance for ParticleSpriteInstance {
     fn render_instance(&self) -> RenderInstance {
         self.render
@@ -72,12 +75,18 @@ impl SpriteInstance for ParticleSpriteInstance {
     fn sprite(&self) -> &Sprite {
         &self.sprite
     }
+
+    fn sprite_mut(&mut self) -> &mut Sprite {
+        &mut self.sprite
+    }
 }
 
 pub struct ParticleShapeInstance {
     pub mesh: Id<MeshResource>,
     pub render: RenderInstance,
 }
+
+impl Instance for ParticleShapeInstance {}
 
 impl ShapeInstance for ParticleShapeInstance {
     fn mesh(&self) -> Id<MeshResource> {

@@ -1,6 +1,6 @@
-use crate::{
-    backend::texture::{AtlasRegion, TextureResource},
-    scene::resources::InstanceData,
+use crate::backend::{
+    instance::{Instance, InstanceData},
+    texture::{AtlasRegion, TextureResource},
 };
 use new_collection::Id;
 
@@ -43,19 +43,20 @@ pub enum Sprite {
     },
 }
 
-pub trait SpriteInstance {
+pub trait SpriteInstance: Instance {
     fn render_instance(&self) -> RenderInstance;
     fn sprite(&self) -> &Sprite;
+    fn sprite_mut(&mut self) -> &mut Sprite;
 }
 
-pub fn run_animated(instances: &mut InstanceData, dt: f32) {
+pub fn run_animated<T: SpriteInstance>(instances: &mut InstanceData<T>, dt: f32) {
     for inst in &mut **instances {
         if let Sprite::Animated {
-            ref layers,
-            ref mut current_layer,
-            ref mut elapsed,
+            layers,
+            current_layer,
+            elapsed,
             ..
-        } = inst.sprite
+        } = inst.sprite_mut()
         {
             let frame_count = layers.end.saturating_sub(layers.start);
             if frame_count > 0 {

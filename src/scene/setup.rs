@@ -1,8 +1,9 @@
 use std::{sync::Arc, vec};
 
 use super::{instance::Dummy, resources::*};
+use crate::backend::target::{self, RenderTargetDescriptor, TargetSize};
 use crate::{
-    backend::{self, buffer},
+    backend::{self, buffer, frame_data::FrameData},
     camera::Camera2D,
     core::Resources,
     geometry::{mesh::Vertex, primitives::*},
@@ -16,7 +17,7 @@ use crate::{
     },
 };
 
-pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
+pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolution: [u32; 2]) {
     let texture_shader =
         backend::load_shader(Some("Texture Shader"), "assets/shaders/texture.wgsl").unwrap();
     let mesh_shader =
@@ -249,12 +250,19 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     resources.insert(IndexBuffer(index_buffer));
     resources.insert(VertexBuffer(vertex_buffer));
     resources.insert(ScenePipeline::default());
-    resources.insert(texture_pipe_ctx);
-    resources.insert(mesh_pipe_ctx);
-    resources.insert(tex_array_pipe_ctx);
+    resources.insert(ScenePipelines {
+        mesh: backend::pipeline::register(mesh_pipe_ctx),
+        texture: backend::pipeline::register(texture_pipe_ctx),
+        texture_array: backend::pipeline::register(tex_array_pipe_ctx),
+    });
+
     resources.insert(CamBuffer(cam_buff));
     resources.insert(cam);
-    resources.insert(InstanceData(instance_data));
+    let mut data = FrameData::new();
+    let instances = data.instances.insert(InstanceData {
+        data: instance_data,
+    });
+
     resources.insert(IndexCount(index_count));
     resources.insert(RectMesh(rectangle));
     resources.insert(CircleMesh(circle));
@@ -284,7 +292,32 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     let mut hud_text = backend::text::Text::new(hud_label, backend::text::TextSpace::Screen);
     hud_text.position = [20.0, 20.0];
 
-    resources.insert(TextInstances(vec![world_text, hud_text]));
+    data.text = vec![world_text, hud_text];
+
+    let target = target::register(RenderTargetDescriptor {
+        label: "Scene",
+        size: TargetSize::Window {
+            width: resolution[0],
+            height: resolution[1],
+        },
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        sample_count: 1,
+    });
+
+    let blur = crate::effects::blur::BlurEffect::new(format, resolution);
+    let present = crate::effects::present::PresentEffect::new(target, format);
+    let composition = crate::effects::composite::CompositeEffect::new(blur.target_a, format);
+
+    resources.insert(SceneRendering {
+        data,
+        instances,
+        passes: Vec::new(),
+        target,
+        blur,
+        present,
+        composition,
+    });
 
     let bubble = backend::load_texture(
         "bubble",
@@ -297,7 +330,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat) {
     particle::spawn_effect(
         Arc::new(EffectDescription {
             // Une seconde d'émission par bouffée, puis une pause avant la suivante.
-            emitter: EmitterSettings::burst(96, 4.5),
+            emitter: EmitterSettings::burst(1_000, 4.5),
             init_modules: vec![
                 Box::new(InitPosition {
                     shape: PositionShape::Circle {

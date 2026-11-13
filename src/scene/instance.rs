@@ -1,4 +1,4 @@
-use crate::backend::{self, Sprite};
+use crate::backend::{self, Sprite, instance::Instance};
 
 pub struct Dummy {
     pub mesh: new_collection::Id<backend::shape::MeshResource>,
@@ -40,4 +40,10 @@ impl backend::SpriteInstance for Dummy {
     fn sprite(&self) -> &backend::Sprite {
         &self.sprite
     }
+
+    fn sprite_mut(&mut self) -> &mut backend::Sprite {
+        &mut self.sprite
+    }
 }
+
+impl Instance for Dummy {}

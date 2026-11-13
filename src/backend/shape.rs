@@ -5,6 +5,7 @@ use new_collection::{Arena, Id};
 
 use super::buffer::{self, Buffer, Index, Vertex};
 use super::{RenderInstance, sprite::cache};
+use crate::backend::instance::Instance;
 use crate::geometry::mesh::{Mesh, Vertex as MeshVertex};
 
 pub struct MeshResource {
@@ -47,7 +48,7 @@ pub fn register(mesh: Mesh) -> Id<MeshResource> {
         })
 }
 
-pub trait ShapeInstance {
+pub trait ShapeInstance: Instance {
     fn mesh(&self) -> Id<MeshResource>;
     fn render_instance(&self) -> RenderInstance;
 }
@@ -58,6 +59,8 @@ pub struct Shape {
     pub scale: [f32; 2],
     pub color: [f32; 4],
 }
+
+impl Instance for Shape {}
 
 impl ShapeInstance for Shape {
     fn mesh(&self) -> Id<MeshResource> {

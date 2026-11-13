@@ -31,7 +31,11 @@ impl ApplicationHandler for App {
         );
         let renderer = Renderer::new(window.clone());
         let debug = DebugManager::init(&window, renderer.conf.format);
-        scene::setup::initialize(&mut self.resources, renderer.conf.format);
+        scene::setup::initialize(
+            &mut self.resources,
+            renderer.conf.format,
+            [renderer.conf.width, renderer.conf.height],
+        );
         self.window = Some(window);
         self.renderer = Some(renderer);
         self.debug = Some(debug);
@@ -119,12 +123,11 @@ impl ApplicationHandler for App {
                             event_loop.exit();
                             return;
                         }
-                        frame.render(|pass| {
-                            if let Err(error) = scene::render::render(&self.resources, pass) {
-                                eprintln!("{error}");
-                                event_loop.exit();
-                            }
-                        });
+                        if let Err(error) = scene::render::render(&self.resources, &mut frame) {
+                            eprintln!("{error}");
+                            event_loop.exit();
+                            return;
+                        }
 
                         debug.flush_into(window, &mut frame.encoder, &frame.view, size_in_pixels);
 
