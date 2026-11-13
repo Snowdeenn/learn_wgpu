@@ -23,7 +23,8 @@ Etat au 05/11/2026. FAIT indique une fonctionnalité présente dans le code.
 . Interface de debug avec egui. FAIT.
 . Particules 2D. FAIT.
 . Texte dans la scène, au-delà de l'interface egui. FAIT.
-. Rendu vers une texture hors écran (framebuffer). A FAIRE.
+. Rendu vers une texture hors écran (framebuffer). FAIT : passes ordonnées, composition et flou des particules.
+. Dynamic Z ordering. A FAIRE.
 . Projet : moteur 2D avec sprites animés, caméra, particules et interface. EN COURS.
 
 3. Moteur 3D (5 à 8 semaines indicatives) - A FAIRE

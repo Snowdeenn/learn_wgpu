@@ -1,0 +1,668 @@
+-- État de l'implémentation --
+
+. Les briques génériques du backend sont disponibles. L'intégration dans app et
+  les effets ne sont pas réalisés ici. Frame::render reste compatible avec le rendu actuel.
+. target::register / get / remove : arena globale, identifiants stables et snapshots Arc.
+  TargetSize::Fixed garde sa taille ; Window { width, height } fournit la taille initiale.
+  Renderer::resize appelle resize_window_targets. Une taille nulle est ignorée ; une
+  taille identique ne recrée rien. Une recréation incrémente la révision.
+. binding_set::register reçoit un layout et des TextureBinding avec numéros de binding
+  explicites (Texture ou Sampler). Le layout décide si une texture est échantillonnée
+  ou utilisée en storage ; ses usages doivent correspondre.
+  binding_set::group(id) vérifie les sources et rafraîchit le groupe à son utilisation.
+  Pas de refresh global obligatoire. Ne pas garder ce groupe dans un pipeline entre
+  les frames : le résoudre dans l'opération. Les samplers sont des handles immuables possédés.
+. pipeline::register / get / remove stockent les contextes avec des IDs typés.
+  pipeline::compute expose la même API, ComputePipelineContext, son builder et bind.
+  get renvoie un Arc : appeler backend::bind(&*context, pass). Aucun verrou du stockage
+  ne reste détenu pendant les opérations de dessin.
+. FrameData possède instances: InstanceStorage et text: Vec<text::Text>.
+  InstanceStorage fournit insert / get / get_mut / remove. Les InstanceId<T> sont
+  copiables, typés et générationnels ; ils appartiennent au stockage qui les a créés.
+  InstanceData<T> contient data: Vec<T> et permet aussi les accès via Deref.
+  L'ancien InstanceData de scène est un alias d'InstanceData<Dummy>.
+. pass::render(target, load, operation) et pass::compute(operation) construisent
+  des PassContext. Store vaut Store par défaut, modifiable dans la variante Render.
+  PassList est simplement Vec<PassContext>. RenderSequence regroupe les opérations
+  qui doivent partager une même render pass.
+. define_render_operation! et define_compute_operation! ajoutent Operation au nom
+  avec paste : écrire Decor génère DecorOperation. Le corps reçoit this/pass/frame
+  et retourne Result<(), PassError>, ce qui permet les appels avec ?.
+. frame.execute(&mut passes, &mut data) exécute la liste dans l'ordre.
+  pass::execute accepte aussi directement un encoder et une vue de surface.
+  En cas d'erreur, abandonner la frame sans appeler finish ; la liste s'arrête à l'erreur.
+  Création, resize et exécution des ressources GPU restent sur le thread de rendu.
+. Le texte utilise toujours text::prepare(&data.text, &view) avant l'exécution,
+  puis text::draw_all(pass) dans une opération. Une préparation et un dessin par
+  soumission, avec le format, la résolution et le nombre d'échantillons attendus par le texte.
+. Cette liste gère un attachment couleur par passe, sans profondeur ni resolve MSAA
+  automatique. Pour lire normalement les cibles suivantes, utiliser sample_count: 1.
+  Les formats des pipelines doivent correspondre aux cibles. Aucun effet ou passage
+  plein écran n'est ajouté implicitement.
+. Libération explicite : retirer les passes, les bindings, puis leurs cibles et pipelines.
+  Les handles déjà acquis et les commandes GPU gardent leurs ressources en vie.
+
+Exemple d'API (dans le module qui possède l'opération, avec les imports correspondants) :
+
+    crate::define_render_operation! {
+        Decor {
+            pipeline: pipeline::PipelineId<DecorPipelineContext>,
+            instances: InstanceId<Shape>,
+        }
+        execute(this, pass, frame) {
+            let context = pipeline::get(this.pipeline).ok_or(PassError::MissingPipeline)?;
+            backend::bind(&*context, pass);
+            let instances = frame.instances.get_mut(&this.instances)
+                .ok_or(PassError::MissingInstances)?;
+            shape::draw_all(&mut instances.data, pass);
+            Ok(())
+        }
+    }
+
+    let mut data = FrameData::new();
+    let instances = data.instances.insert(shapes.into());
+    let pipeline = pipeline::register(decor_context);
+    let target = target::register(RenderTargetDescriptor {
+        label: "Decor",
+        size: TargetSize::Window { width, height },
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        sample_count: 1,
+    });
+    let mut passes = vec![pass::render(
+        target,
+        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+        DecorOperation { pipeline, instances },
+    )];
+    // Mettre à jour data.instances avant l'exécution si nécessaire.
+    // Dans le code appelant : frame.execute(&mut passes, &mut data)?;
+    // Puis frame.finish() uniquement si l'exécution a réussi.
+    // Remplacer target par PassTarget::Surface pour dessiner directement dans la fenêtre.
+
+Validation :
+    cargo test --offline
+    cargo test --offline gpu_framebuffer_passes_resize_and_resource_lifecycle -- --ignored
+
+Le test GPU hors écran vérifie les pixels produits par une suite render -> compute -> render,
+Clear/Load, l'ordre des opérations, le refresh après resize, les suppressions et l'arrêt sur erreur.
+Les sections suivantes conservent les idées et propositions initiales ; leurs exemples
+illustratifs ne remplacent pas l'API effectivement implémentée décrite ci-dessus.
+
+-- Idée --
+
+. Je veux un système de rendu organisé en liste ordonnée de passes, avec plusieurs textures hors écran.
+
+    - Le moteur rend certains éléments séparément : le décor dans une texture, les particules dans une autre.
+    - Le moteur applique des effets locaux aux éléments concernés, par exemple un flou sur les particules pour créer de la fumée.
+    - Le moteur compose les résultats utiles dans une image de scène commune, en respectant l’ordre et la transparence.
+    - Le moteur applique les effets globaux, comme le bloom, à cette image composée.
+    - Le moteur affiche le résultat final dans la fenêtre.
+
+Chaque passe choisit explicitement ses textures d’entrée, sa destination et son opération. Une texture peut servir de destination à une étape, puis d’entrée à la suivante.
+
+Ju veux rendre ces briques réutilisables pour ajouter des effets et des cibles sans réécrire tout le renderer, tout en gardant l’ordre d’exécution sous ton contrôle.
+
+
+. Trois responsabilités :
+    - Les cibles de rendu possèdent les textures dans lesquelles tu peux écrire.
+    - Les passes effectuent une opération : dessiner les particules, flouter une image, composer deux images…
+    - L’organisation de la frame décide des entrées, des sorties et de l’ordre de ces passes.
+
+. Il faudrait pouvoir créer des textures intermédiaires à la demande pour le rendu hors écran(une fonction de construction -> renvoie la texture et la view) => RenderTarget.
+ - Système de gestion de textures intermédiaires (framebuffer) => arena global.
+
+. Il faudrait pouvoir constuire des passes de rendu dans une structure (PassContext ?) qui rassemble la construction de la pass et les pipelines à éxécuter 
+  (struct qui rassemble les paramètres de construction de la pass)
+
+ - Les destinations hors écran sont référencées par identifiant de RenderTarget ; la vue est récupérée à l'exécution.
+ - Les descriptions des PassContext peuvent persister entre les frames ; les passes wgpu sont ouvertes et terminées à chaque exécution.
+
+. Il faudrait un système de gestion au dessus du PassContext (si besoin de les stocker): gestion du cycle de vie ?, organisation du rendu ?.
+
+. L'éxécution des dessins et de la pass : 
+    - On garde le système actuel mais il sera cacher par une fonction genre exectute qui prend les données à dessiner (instances).
+    - Il faudrait donc peut être réfléchir à un moyen de bien gérer les instances (si nécessaire), parce que les instances devront être prête avant le rendu et le batch.
+
+
+-- Architecture retenue après discussion --
+
+1. Ressources
+    - Une arena globale dédiée aux RenderTarget possède les textures hors écran et leurs vues.
+    - Les cibles sont créées selon les besoins, puis réutilisées entre les frames.
+    - Plusieurs buffers d'instances peuvent servir à séparer les ensembles à dessiner.
+      Cela évite de gérer leurs positions dans un grand buffer commun au niveau des appels.
+      L'allocateur peut toujours partager des pages GPU ; les batches peuvent encore utiliser des plages locales.
+    - Les PipelineContext existants conservent la configuration GPU ; backend::bind reste réutilisé.
+
+2. Liste ordonnée de passes
+    - Toutes les passes, y compris le rendu actuel, passent par ce système.
+    - PassContext est un enum avec deux variantes :
+        Render : destination, paramètres des attachments (Clear/Load, Store...), opération de rendu.
+        Compute : opération compute ; ses entrées et sorties passent par les bindings.
+    - PassTarget distingue Offscreen(RenderTargetId) et Surface.
+    - La destination Surface est résolue vers la vue de l'image acquise pour la frame courante.
+    - Les descriptions peuvent persister, mais aucune passe wgpu ouverte n'est conservée entre les frames.
+    - L'ordre est explicite dans une liste ; pas de render graph nécessaire à ce stade.
+
+3. Opérations
+    - RenderOperation::execute reçoit une RenderPass ouverte et les données de la frame.
+    - ComputeOperation::execute reçoit une ComputePass ouverte et les données de la frame.
+    - Les opérations continuent d'appeler l'API de dessin actuelle.
+    - Une opération peut utiliser un ou plusieurs PipelineContext et effectuer les bindings nécessaires.
+    - Une brique simple peut faire bind du contexte, puis exécuter les commandes de dessin.
+    - RenderSequence exécute plusieurs RenderOperation dans une même render pass.
+    - Un changement de destination nécessite un autre PassContext dans la liste principale.
+    - Des macros généreront les structures d'opération et les implémentations des traits,
+      sur le modèle des macros de PipelineContext. Le corps d'exécution reste explicite.
+
+4. Exécution d'une frame
+    - Préparer les données à dessiner et les buffers nécessaires.
+    - Acquérir l'image de surface et créer l'encoder via Frame.
+    - Parcourir la liste des PassContext :
+        résoudre la destination et les ressources ;
+        ouvrir la RenderPass ou ComputePass ;
+        appeler operation.execute ;
+        terminer la passe avant la suivante.
+    - Soumettre les commandes puis présenter l'image de surface.
+    - Frame garde son rôle d'encadrement : encoder, soumission et présentation.
+    - Le batching peut rester dans les fonctions actuelles de dessin si pertinent.
+
+5. Exemple : fumée
+    - Décor -> texture de scène (Clear).
+    - Particules de fumée -> fumée A (Clear transparent).
+      Plusieurs pipelines peuvent intervenir via une RenderSequence.
+    - Fumée A -> flou horizontal -> fumée B.
+    - Fumée B -> flou vertical -> fumée A.
+    - Fumée A -> composition sur la texture de scène (Load + blending).
+      Le shader lit la fumée ; le blending mélange avec le contenu existant de la scène.
+    - Scène composée -> effets globaux (ex. bloom et ses intermédiaires) -> surface.
+    - Seuls les résultats utiles sont composés, pas automatiquement toutes les textures intermédiaires.
+    - Le traitement de la couleur et de l'alpha doit rester cohérent pendant le flou et la composition.
+
+6. Points encore ouverts
+    - Sélection et préparation des instances destinées à chaque opération.
+    - Forme exacte de la structure qui possède et exécute la liste ordonnée.
+    - Politique de taille, redimensionnement et libération des RenderTarget.
+    - Emplacement exact du contrôle des révisions et du refresh avant l'exécution des passes.
+
+7. Choix retenu pour les bindings de textures
+    - Les RenderTarget restent propriétaires des textures et de leurs vues dans l'arena.
+    - Un ensemble de bindings (nom provisoire : TextureBindingSet) conserve une liste
+      d'identifiants de RenderTarget sources et le bind group qui référence leurs ressources.
+    - Les samplers nécessaires sont conservés ou référencés par cet ensemble ; leur partage reste à préciser.
+    - Un ensemble peut réunir plusieurs textures ; une cible peut être référencée par plusieurs ensembles.
+    - La disposition des bindings est explicite et doit correspondre au layout attendu par le pipeline
+      et aux déclarations du shader (par exemple texture A, sampler A, texture B, sampler B).
+    - Ce vecteur est une liste de ressources servant à construire les entrées du bind group,
+      pas nécessairement un binding array de textures côté shader.
+    - Quand une cible est recréée, reconstruire puis remplacer les bind groups des ensembles
+      qui la référencent. Conserver le même identifiant de cible ne rafraîchit pas les groupes automatiquement.
+    - Les anciens handles sont droppés ; wgpu conserve les ressources encore utilisées par les commandes.
+    - Détection retenue : identifiant de cible stable + révision de sa ressource GPU.
+
+8. Révisions et refresh des bindings
+    - Chaque RenderTarget possède une révision, incrémentée quand sa texture ou sa vue est remplacée.
+    - Son identifiant dans l'arena reste stable lors de ce remplacement.
+    - La génération du handle de l'arena sert à détecter une suppression/réutilisation d'entrée ;
+      elle ne détecte pas le remplacement d'une ressource à l'intérieur d'une entrée existante.
+    - Chaque TextureBindingSet mémorise les révisions de ses sources utilisées pour construire son groupe.
+    - Avant utilisation, comparer ces révisions aux révisions actuelles des cibles.
+      Si une source a changé, reconstruire le groupe puis mémoriser les nouvelles révisions.
+    - Au resize, recréer les cibles dont la taille dépend de la fenêtre et incrémenter leurs révisions.
+      Les ensembles qui les lisent seront alors rafraîchis avant leur prochaine utilisation.
+    - Une modification du contenu d'une texture ou d'un buffer existant ne change pas sa révision
+      de ressource et ne nécessite pas de reconstruire le bind group.
+    - Si les samplers référencés peuvent être remplacés, leur changement doit aussi invalider les bindings.
+
+9. FrameData et types d'instances
+    - FrameData contient uniquement les données d'instances à dessiner, y compris les données de texte.
+      Il ne sert pas de conteneur général pour les pipelines et les autres ressources du moteur.
+    - Introduire un trait marqueur commun Instance : 'static.
+    - SpriteInstance et ShapeInstance ont Instance comme supertrait :
+        trait SpriteInstance: Instance { ... }
+        trait ShapeInstance: Instance { ... }
+    - Dummy reste le type concret actuel avec ses champs et implémente Instance,
+      en plus de ses implémentations de SpriteInstance et ShapeInstance.
+    - Généraliser le conteneur actuel en InstanceData<T: Instance>, contenant un Vec<T>.
+      Les données actuelles deviennent donc InstanceData<Dummy>.
+    - Le stockage accepte les types Instance ; les fonctions de dessin imposent les contraintes
+      propres à leur famille, par exemple T: SpriteInstance ou T: ShapeInstance.
+    - Stockage hétérogène retenu : conteneurs InstanceData<T> possédés, avec effacement
+      du type via Box<dyn Any> et récupération vérifiée par downcast.
+    - Utiliser des identifiants typés pour retrouver les conteneurs ; plusieurs ensembles
+      du même type peuvent ainsi coexister. Le downcast est masqué par l'API du stockage.
+    - Le texte conserve un stockage dédié accessible via FrameData et son API de dessin existante.
+
+10. Choix du stockage des instances classiques
+    - Le stockage possède les InstanceData<T> : on ne place pas des emprunts temporaires
+      &mut InstanceData<T> dans Any, qui exige des types 'static.
+    - L'effacement de type porte sur le conteneur entier ; les instances restent dans un Vec<T>
+      contigu. Pas de Box<dyn Instance> par instance ni d'adaptateur de dessin imposé.
+    - L'opération récupère son InstanceData<T> avec un identifiant typé, puis appelle
+      directement l'API de dessin actuelle avec le type concret retrouvé.
+    - Les identifiants d'instances utilisés par les opérations doivent rester valides pendant leur utilisation.
+    - FrameData possède InstanceStorage et peut persister entre les frames.
+    - Le texte conserve son stockage et son système dédiés, accessibles via FrameData,
+      et reste dessiné avec son API actuelle.
+
+11. Stockage des PipelineContext
+    - Les PipelineContext sont possédés par un stockage dédié, suivant le pattern des autres ressources.
+    - Les opérations conservent les identifiants des contextes qu'elles utilisent.
+    - Résoudre le contexte puis passer sa référence à backend::bind au moment du dessin.
+    - Une opération peut binder plusieurs contextes : bind A -> dessins A -> bind B -> dessins B.
+      Ne pas binder tous les contextes avant tous les dessins : seul le dernier état serait actif.
+    - Le stockage peut masquer les types concrets ; un identifiant typé permet de les retrouver.
+    - Pour le compute, prévoir des contextes et un helper de binding adaptés à ComputePass.
+      Le PipelineContext actuel et backend::bind concernent le rendu.
+
+
+-- API illustrative : proposition d'utilisation --
+
+Ces extraits décrivent une API à construire, pas du code Rust complet à copier/compiler.
+Les noms de constructeurs et les signatures restent ajustables. InstanceStorage existe déjà
+dans src/backend/instance.rs avec insert et get_mut ; les autres helpers ci-dessous sont proposés.
+Les identifiants sont supposés copiables dans ces exemples. Les stockages globaux peuvent
+rester dans le backend ; des paramètres explicites sont montrés pour rendre les accès lisibles.
+RenderResources est un accès temporaire aux stockages, pas un second propriétaire des ressources.
+
+A. Instances et FrameData
+
+    trait Instance: 'static {}
+    trait SpriteInstance: Instance { /* API actuelle */ }
+    trait ShapeInstance: Instance { /* API actuelle */ }
+    impl Instance for Dummy {}
+
+    struct FrameData {
+        instances: InstanceStorage,
+        text: TextInstanceStorage, // Nom indicatif ; système texte existant.
+    }
+
+    let mut frame_data = FrameData::new();
+    let decor_id = frame_data.instances.insert(InstanceData::<Dummy> {
+        data: decor_instances,
+    });
+    let smoke_id = frame_data.instances.insert(InstanceData::<ParticleSpriteInstance> {
+        data: smoke_instances,
+    });
+    let sparks_id = frame_data.instances.insert(InstanceData::<ParticleSpriteInstance> {
+        data: spark_instances,
+    });
+
+    // Même type pour fumée et étincelles, identifiants différents.
+    let smoke = frame_data.instances.get_mut(&smoke_id).unwrap();
+    smoke.data.clear();
+    smoke.data.extend(updated_smoke_instances);
+
+    // Le downcast interne retrouve InstanceData<ParticleSpriteInstance>.
+    // Les données peuvent être mises à jour à chaque frame sans recréer les identifiants.
+    // Le texte continue d'être préparé puis dessiné via son API dédiée.
+
+B. Cibles et destination
+
+    struct RenderTarget {
+        texture: Texture, // Contient déjà la TextureView dans le backend actuel.
+        revision: u64,
+        size_policy: TargetSize,
+    }
+
+    enum TargetSize {
+        Fixed { width: u32, height: u32 },
+        Window,
+        // Une taille proportionnelle à la fenêtre pourra être ajoutée si utile.
+    }
+
+    enum PassTarget {
+        Offscreen(RenderTargetId),
+        Surface,
+    }
+
+    let scene = targets.insert(RenderTargetDescriptor {
+        label: "Scene",
+        size: TargetSize::Window,
+        format: scene_format,
+        usage: RENDER_ATTACHMENT | TEXTURE_BINDING,
+        sample_count: 1,
+    });
+    let smoke_a = targets.insert(smoke_descriptor("Smoke A"));
+    let smoke_b = targets.insert(smoke_descriptor("Smoke B"));
+
+    // Les formats des pipelines doivent correspondre aux destinations.
+    // Exemple initial simple : même format couleur pour scène, fumée et sortie.
+    // Un futur bloom HDR pourra demander Rgba16Float et une passe finale de tonemapping.
+    // Le rendu hors écran ne nécessite pas COPY_SRC, sauf si une copie est prévue.
+    // Un output compute en texture de stockage nécessite STORAGE_BINDING et un format adapté.
+
+C. Ensembles de bindings et révisions
+
+    struct TextureBindingSet {
+        sources: Vec<RenderTargetId>,
+        source_revisions: Vec<u64>,
+        samplers: Vec<Sampler>,
+        layout: BindGroupLayout,
+        group: BindGroup,
+    }
+
+    let smoke_a_read = bindings.insert(TextureBindingSet::new(
+        &targets,
+        texture_sampler_layout.clone(),
+        vec![smoke_a],
+        vec![linear_clamp_sampler.clone()],
+    ));
+    let smoke_b_read = bindings.insert(/* même construction avec smoke_b */);
+    let scene_read = bindings.insert(/* même construction avec scene */);
+
+    // Exemple de groupe avec plusieurs textures :
+    let combine_inputs = bindings.insert(TextureBindingSet::new(
+        &targets,
+        two_textures_layout,
+        vec![scene, bloom_result],
+        vec![linear_clamp_sampler.clone(), linear_clamp_sampler.clone()],
+    ));
+    // Layout illustratif : 0 texture scène, 1 sampler, 2 texture bloom, 3 sampler.
+    // Les bindings compute en storage ont leur propre description/layout :
+    // cette forme texture + sampler est la forme de lecture échantillonnée.
+
+    fn refresh_if_needed(&mut self, targets: &RenderTargetStorage) {
+        // Lire les révisions actuelles de toutes les sources.
+        // Si différentes : créer un nouveau groupe avec le layout conservé,
+        // remplacer self.group et enregistrer les nouvelles révisions.
+        // Signaler une erreur si une source a été supprimée.
+    }
+
+    // Important : l'opération résout le groupe actuel via son identifiant.
+    // Un clone mis en cache ailleurs ne serait pas redirigé lors de son remplacement.
+
+D. Pipelines stockés et bindings renouvelables
+
+    let sprites_pipeline = pipelines.insert(sprite_pipeline_context);
+    let decor_pipeline = pipelines.insert(decor_pipeline_context);
+    let blur_pipeline = pipelines.insert(blur_pipeline_context);
+    let composite_pipeline = pipelines.insert(alpha_composite_context);
+    let present_pipeline = pipelines.insert(present_context);
+
+    let context = pipelines.get(&sprites_pipeline).unwrap();
+    backend::bind(context, pass);
+
+    // Les groupes dépendant des RenderTarget sont résolus séparément.
+    // Éviter d'en conserver une ancienne copie dans le PipelineContext.
+    backend::bind(pipelines.get(&blur_pipeline).unwrap(), pass);
+    pass.set_bind_group(0, bindings.get(smoke_a_read).group(), &[]);
+    pass.draw(0..3, 0..1);
+
+    // Le contexte de flou laisse donc ce slot variable libre, ou l'opération
+    // le remplace explicitement après backend::bind, avant chaque dessin.
+
+E. Traits, macros et opérations
+
+    trait RenderOperation {
+        fn execute(
+            &mut self,
+            pass: &mut wgpu::RenderPass<'_>,
+            frame: &mut FrameData,
+            resources: &RenderResources<'_>,
+        );
+    }
+
+    trait ComputeOperation {
+        fn execute(
+            &mut self,
+            pass: &mut wgpu::ComputePass<'_>,
+            frame: &mut FrameData,
+            resources: &RenderResources<'_>,
+        );
+    }
+
+    // Syntaxe proposée : la macro génère la structure et l'implémentation du trait.
+    // Les noms this/pass/frame/resources sont fournis par l'appelant à la macro.
+    define_render_operation! {
+        SmokeOperation {
+            pipeline: PipelineId<SmokePipelineContext>,
+            instances: InstanceId<ParticleSpriteInstance>,
+        }
+        execute(this, pass, frame, resources) {
+            let context = resources.pipelines.get(&this.pipeline).unwrap();
+            backend::bind(context, pass);
+            let instances = frame.instances.get_mut(&this.instances).unwrap();
+            backend::sprite::draw_all(&mut instances.data, pass);
+        }
+    }
+
+    // Cet exemple suppose que le contexte correspond aux sprites fournis.
+    // Une opération mêlant sprites Separate/Atlas et Array conserve le choix
+    // de pipeline par batch déjà présent dans scene::render::draw_sprites.
+
+    define_render_operation! {
+        BlurOperation {
+            pipeline: PipelineId<BlurPipelineContext>,
+            source: TextureBindingSetId,
+            direction: BlurDirection,
+        }
+        execute(this, pass, _frame, resources) {
+            backend::bind(resources.pipelines.get(&this.pipeline).unwrap(), pass);
+            pass.set_bind_group(0, resources.bindings.get(this.source).group(), &[]);
+            // Fournir la direction et les paramètres préparés pour CETTE opération.
+            // Exemple : groupe de paramètres distinct pour chaque direction.
+            pass.set_bind_group(1, resources.blur_params.get(this.direction).group(), &[]);
+            pass.draw(0..3, 0..1);
+        }
+    }
+
+    // Ne pas réécrire le même uniform entre deux draws en supposant que chaque
+    // draw verra une valeur différente : les queue.write_buffer précèdent les commandes
+    // de la soumission. Utiliser des régions/groupes distincts ou des offsets adaptés.
+
+    define_compute_operation! {
+        SimulationOperation {
+            pipeline: ComputePipelineId<SimulationContext>,
+            workgroups: [u32; 3],
+        }
+        execute(this, pass, _frame, resources) {
+            compute::bind(resources.compute_pipelines.get(&this.pipeline).unwrap(), pass);
+            pass.dispatch_workgroups(
+                this.workgroups[0], this.workgroups[1], this.workgroups[2],
+            );
+        }
+    }
+
+F. Plusieurs opérations dans une même passe
+
+    struct RenderSequence {
+        operations: Vec<Box<dyn RenderOperation>>,
+    }
+
+    impl RenderOperation for RenderSequence {
+        fn execute(&mut self, pass, frame, resources) {
+            for operation in &mut self.operations {
+                operation.execute(pass, frame, resources);
+            }
+        }
+    }
+
+    // Chaque opération effectue ses bindings avant ses dessins.
+    let scene_operations = RenderSequence::new(vec![
+        Box::new(decor_operation),
+        Box::new(sparks_operation),
+    ]);
+
+G. Construction de la liste de passes : scène et fumée
+
+    enum PassContext {
+        Render {
+            target: PassTarget,
+            load: wgpu::LoadOp<wgpu::Color>,
+            store: wgpu::StoreOp,
+            operation: Box<dyn RenderOperation>,
+        },
+        Compute {
+            operation: Box<dyn ComputeOperation>,
+        },
+    }
+
+    // PassList et ses constructeurs masquent ici les Box et les paramètres répétitifs.
+    let mut passes = PassList::new(vec![
+        PassContext::render(scene, Clear(BLACK), scene_operations),
+        PassContext::render(smoke_a, Clear(TRANSPARENT), SmokeOperation {
+            pipeline: sprites_pipeline,
+            instances: smoke_id,
+        }),
+        PassContext::render(smoke_b, Clear(TRANSPARENT), BlurOperation {
+            pipeline: blur_pipeline,
+            source: smoke_a_read,
+            direction: Horizontal,
+        }),
+        PassContext::render(smoke_a, Clear(TRANSPARENT), BlurOperation {
+            pipeline: blur_pipeline,
+            source: smoke_b_read,
+            direction: Vertical,
+        }),
+        PassContext::render(scene, Load, CompositeOperation {
+            pipeline: composite_pipeline,
+            source: smoke_a_read,
+        }),
+        // Insérer ici les passes globales, avec leurs propres intermédiaires.
+        PassContext::render(PassTarget::Surface, Clear(BLACK), PresentOperation {
+            pipeline: present_pipeline,
+            source: scene_read,
+        }),
+    ]);
+
+    // CompositeOperation et PresentOperation suivent le modèle du flou :
+    // bind contexte -> bind source actuelle -> triangle plein écran.
+    // La composition utilise un pipeline avec blending approprié et Load sur scène.
+    // Le flou et la composition doivent traiter couleur/alpha de manière cohérente.
+    // Ici les constructeurs acceptent un RenderTargetId converti en Offscreen.
+    // Store vaut Store par défaut pour les images relues dans les passes suivantes.
+
+H. Exécution et préparation
+
+    // À chaque frame :
+    update_instance_data(&mut frame_data);
+    // Préparer le texte via son API, avec la résolution de sa cible de rendu.
+    prepare_text(&frame_data.text, text_target_resolution);
+    // Certains uploads/batches d'instances peuvent rester dans l'API actuelle de dessin.
+
+    // Proposition : refresh commun avant l'ouverture des passes.
+    bindings.refresh_changed(&targets);
+    prepare_operation_parameters();
+
+    if let Some(mut frame) = renderer.begin_frame(&window)? {
+        passes.execute(
+            &mut frame.encoder,
+            &frame.view,
+            &mut frame_data,
+            &render_resources,
+        );
+        frame.finish();
+    }
+
+    // Intérieur conceptuel de PassList::execute :
+    for context in &mut self.passes {
+        match context {
+            Render { target, load, store, operation } => {
+                let view = match target {
+                    Offscreen(id) => resources.targets.get(id).unwrap().texture.view(),
+                    Surface => surface_view,
+                };
+                let mut pass = begin_render_pass(encoder, view, load, store);
+                operation.execute(&mut pass, frame_data, resources);
+            }
+            Compute { operation } => {
+                let mut pass = begin_compute_pass(encoder);
+                operation.execute(&mut pass, frame_data, resources);
+            }
+        }
+        // La passe est droppée avant la suivante.
+    }
+
+    // FrameData reste consacré aux instances ; resources fournit séparément
+    // les accès aux cibles, pipelines, bindings et paramètres GPU.
+    // Avec des arenas globales protégées par des locks, éviter de conserver un verrou
+    // puis de reprendre le même verrou depuis une fonction de dessin.
+
+I. Resize et libération
+
+    if width > 0 && height > 0 {
+        renderer.resize(size);
+        targets.resize_window_targets(size);
+        // Chaque cible réellement recréée conserve son ID et incrémente sa révision.
+        // refresh_changed reconstruira les groupes concernés avant leur utilisation.
+    }
+
+    // Pour retirer un effet : retirer ses passes, puis ses ensembles de bindings,
+    // puis ses cibles exclusives si plus personne ne les utilise.
+    // La politique exacte de libération reste à implémenter ; les IDs ne constituent
+    // pas à eux seuls un comptage de références ou une suppression automatique.
+
+J. Première intégration
+
+    - Brancher le rendu actuel sur une opération dans une passe vers Surface.
+    - Conserver le comportement des dessins existants.
+    - Ajouter une texture de scène puis une passe plein écran vers Surface.
+    - Ajouter les particules isolées, le flou en deux passes et la composition.
+    - Étendre ensuite les effets globaux et les opérations compute selon les besoins.
+
+K. Arborescence proposée
+
+Organisation cible indicative ; les modules restent regroupés tant que leur taille ne justifie pas
+de les séparer davantage. Les effets concrets sont distincts des mécanismes génériques.
+
+src/
+|-- backend/
+|   |-- context.rs              Device, Queue et accès aux stockages globaux
+|   |-- renderer.rs             Surface, resize de surface, Frame, submit/present
+|   |-- frame_data.rs           InstanceStorage propriétaire + données texte dédiées
+|   |-- instance.rs             Instance, InstanceData<T>, InstanceId<T>, InstanceStorage
+|   |-- buffer.rs               Allocateur GPU actuel
+|   |-- bind_group.rs           Builders et macro bind_group! actuels
+|   |-- sampler.rs
+|   |-- shader.rs
+|   |
+|   |-- target/
+|   |   |-- mod.rs              RenderTarget, descriptor, révision et politique de taille
+|   |   `-- storage.rs          Arena, IDs, création, resize et suppression
+|   |
+|   |-- binding_set/
+|   |   |-- mod.rs              Sources, samplers, layout, groupe et révisions mémorisées
+|   |   `-- storage.rs          IDs des ensembles et refresh des groupes périmés
+|   |
+|   |-- pass/                  Remplace le fichier pass.rs par un module
+|   |   |-- mod.rs              PassContext Render/Compute, PassTarget, exports
+|   |   |-- builder.rs          RenderPassBuilder actuel et ses builders d'attachments
+|   |   |-- operation.rs        Traits RenderOperation/ComputeOperation, RenderSequence
+|   |   |-- macros.rs           Macros de définition des opérations
+|   |   `-- list.rs             Liste ordonnée et exécution des passes
+|   |
+|   |-- pipeline/
+|   |   |-- mod.rs              RenderPipelineBuilder actuel
+|   |   |-- context.rs          PipelineContext, backend::bind et macros actuels
+|   |   |-- storage.rs          Stockage des contextes et IDs typés
+|   |   `-- compute.rs          Contexte/builder/helper compute lorsque nécessaire
+|   |
+|   |-- texture/               Texture, chargement et textures de sprites actuels
+|   |-- sprite/                API, batching et cache d'instances actuels
+|   |-- shape.rs               API de dessin des formes actuelle
+|   `-- text/                  Stockage, préparation et dessin du texte existants
+|
+|-- effects/
+|   |-- mod.rs
+|   |-- blur.rs                Opérations de flou et construction de leurs paramètres
+|   |-- composite.rs           Opération de composition avec blending
+|   |-- present.rs             Opération plein écran vers la surface
+|   `-- bloom.rs               Futur assemblage des passes du bloom
+|
+|-- scene/
+|   |-- setup.rs               Création des ressources et assemblage de la liste de passes
+|   |-- render.rs              Opérations de dessin spécifiques à la scène
+|   |-- instance.rs            Types concrets, dont Dummy
+|   `-- resources.rs           IDs et autres ressources propres à la scène
+|
+|-- particle/                  Simulation et production des instances de particules
+`-- app/                       Mise à jour des données, événements et lancement du rendu
+
+    - Aucun besoin d'un module par opération : plusieurs opérations liées peuvent partager un fichier.
+    - Les modules de stockage utilisent le pattern d'arena existant ; éviter de dupliquer
+      leurs mécanismes de base quand une brique commune suffit.
+    - Le backend ne doit pas dépendre de Dummy ou d'une opération propre à la scène.
+    - Les effets réutilisables dépendent du backend ; scene::setup compose ces effets selon le besoin.
+
+
