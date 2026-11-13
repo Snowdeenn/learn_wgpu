@@ -15,7 +15,8 @@ pub fn batch<T: SpriteInstance>(
     let start = instance_range.start;
     let slice = &mut instances[start as usize..instance_range.end as usize];
 
-    slice.sort_by_key(sort_key);
+    // Sup temp pour voir si plus tard on pourrait le garder tout en conservant l'ordre pour faire en objct moins de draw call
+    // slice.sort_by_key(sort_key); 
 
     let mut batches: Vec<Batch> = Vec::new();
 
