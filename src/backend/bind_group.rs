@@ -294,6 +294,35 @@ pub trait Bindable {
     fn binding_resource(&self) -> wgpu::BindingResource<'_>;
 }
 
+/// Infer a layout from resources without creating a bind group.
+/// Bindings are numbered in declaration order, as in `bind_group!`.
+#[macro_export]
+macro_rules! bind_group_layout {
+    ($($visibility:expr => $resource:expr),+ $(,)?) => {{
+        use $crate::backend::bind_group::Bindable;
+
+        let mut entries = Vec::new();
+        $(
+            {
+                let resource = &$resource;
+                let resolved = resource.resolve_binding();
+                entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: entries.len() as u32,
+                    visibility: $visibility,
+                    ty: resolved.binding_type(),
+                    count: None,
+                });
+            }
+        )*
+
+        $crate::backend::context::device()
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &entries,
+            })
+    }};
+}
+
 #[macro_export]
 macro_rules! bind_group {
     ($($visibility:expr => $resource:expr),+ $(,)?) => {{

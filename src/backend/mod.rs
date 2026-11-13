@@ -1,4 +1,6 @@
 pub mod bind_group;
+pub mod binding_set;
+pub mod target;
 pub mod buffer;
 pub mod context;
 pub mod pass;
