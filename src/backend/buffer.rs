@@ -306,7 +306,7 @@ pub(super) struct BufferArena {
 }
 
 impl BufferArena {
-    const PAGE_SIZE: u64 = 1024 * 1024;
+    pub(super) const PAGE_SIZE: u64 = 1024 * 1024;
 
     pub fn new() -> Self {
         BufferArena {

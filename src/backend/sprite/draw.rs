@@ -2,6 +2,7 @@ use new_collection::Id;
 
 use super::{Batch, Sprite, SpriteInstance};
 use crate::backend::{self, context, texture::TextureResource};
+use crate::backend::instances::cache;
 
 fn get_bind_group<T: SpriteInstance>(
     texture: Id<TextureResource>,
@@ -40,19 +41,14 @@ pub fn draw<T: SpriteInstance>(
     let Some(texture_bind_group) = get_bind_group(batch.resource, inst) else {
         return;
     };
-    let instance_buffer_group = prepare_instance(instances, batch.range.clone());
-
-    pass.set_bind_group(0, &instance_buffer_group, &[]);
     pass.set_bind_group(2, &texture_bind_group, &[]);
-    let instance_count = batch.range.end - batch.range.start;
-    pass.draw_indexed(batch.indices.clone(), 0, 0..instance_count);
-}
-
-fn prepare_instance<T: SpriteInstance>(
-    instances: &mut [T],
-    range: std::ops::Range<u32>,
-) -> wgpu::BindGroup {
-    crate::backend::instances::cache::prepare(instances, range)
+    
+    for range in cache::chunk_ranges(batch.range.clone()) {
+        let instance_count = range.end - range.start;
+        let instance_buffer_group = cache::prepare(instances, range);
+        pass.set_bind_group(0, &instance_buffer_group, &[]);
+        pass.draw_indexed(batch.indices.clone(), 0, 0..instance_count);
+    }
 }
 
 #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]

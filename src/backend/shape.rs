@@ -127,16 +127,18 @@ pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgp
     };
     let (vertices, vertex_range) = mesh.vertices.raw_region();
     let (indices, index_range) = mesh.indices.raw_region();
-    let render_instances = instances[batch.range.start as usize..batch.range.end as usize]
-        .iter()
-        .map(ShapeInstance::render_instance);
-    let group = cache::prepare_render_instances(render_instances, batch.range.clone());
-    pass.set_bind_group(0, &group, &[]);
     pass.set_vertex_buffer(0, vertices.slice(vertex_range));
     pass.set_index_buffer(indices.slice(index_range), wgpu::IndexFormat::Uint32);
-    
-    let instance_count = batch.range.end - batch.range.start;
-    pass.draw_indexed(0..mesh.index_count, 0, 0..instance_count);
+
+    for range in cache::chunk_ranges(batch.range.clone()) {
+        let instance_count = range.end - range.start;
+        let render_instances = instances[range.start as usize..range.end as usize]
+            .iter()
+            .map(ShapeInstance::render_instance);
+        let group = cache::prepare_render_instances(render_instances, range);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw_indexed(0..mesh.index_count, 0, 0..instance_count);
+    }
 }
 
 pub fn draw_all<T: ShapeInstance>(instances: &mut [T], pass: &mut wgpu::RenderPass<'_>) {
