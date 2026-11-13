@@ -6,6 +6,7 @@ mod camera;
 mod core;
 mod debug;
 mod geometry;
+mod effects;
 mod scene;
 mod particle;
 
