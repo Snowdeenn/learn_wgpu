@@ -53,7 +53,10 @@ pub trait ShapeInstance: Instance {
     fn render_instance(&self) -> RenderInstance;
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct Shape {
     pub mesh: Id<MeshResource>,
     pub position: [f32; 2],
@@ -131,7 +134,9 @@ pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgp
     pass.set_bind_group(0, &group, &[]);
     pass.set_vertex_buffer(0, vertices.slice(vertex_range));
     pass.set_index_buffer(indices.slice(index_range), wgpu::IndexFormat::Uint32);
-    pass.draw_indexed(0..mesh.index_count, 0, batch.range.clone());
+    
+    let instance_count = batch.range.end - batch.range.start;
+    pass.draw_indexed(0..mesh.index_count, 0, 0..instance_count);
 }
 
 pub fn draw_all<T: ShapeInstance>(instances: &mut [T], pass: &mut wgpu::RenderPass<'_>) {

@@ -67,7 +67,7 @@ pub(in crate::backend) fn prepare_render_instances(
 ) -> wgpu::BindGroup {
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
     let index = cache.next;
-    let required = range.end as usize;
+    let required = (range.end - range.start) as usize;
 
     if index == cache.slots.len() {
         cache.slots.push(InstanceSlot::new(required));
@@ -81,7 +81,7 @@ pub(in crate::backend) fn prepare_render_instances(
     let slot = &cache.slots[index];
     buffer::write_buffer(
         &slot.buffer,
-        range.start as u64 * size_of::<RenderInstance>() as u64,
+        0,
         &cache.staging,
     );
     let group = slot.group.clone();

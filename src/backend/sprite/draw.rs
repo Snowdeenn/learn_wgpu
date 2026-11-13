@@ -44,7 +44,8 @@ pub fn draw<T: SpriteInstance>(
 
     pass.set_bind_group(0, &instance_buffer_group, &[]);
     pass.set_bind_group(2, &texture_bind_group, &[]);
-    pass.draw_indexed(batch.indices.clone(), 0, batch.range.clone());
+    let instance_count = batch.range.end - batch.range.start;
+    pass.draw_indexed(batch.indices.clone(), 0, 0..instance_count);
 }
 
 fn prepare_instance<T: SpriteInstance>(
