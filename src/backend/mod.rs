@@ -1,13 +1,16 @@
 pub mod bind_group;
 pub mod binding_set;
-pub mod target;
 pub mod buffer;
 pub mod context;
+pub mod frame_data;
 pub mod pass;
 pub mod pipeline;
 pub mod renderer;
 pub mod sampler;
 pub mod texture;
+pub mod target;
+
+pub mod instance;
 
 mod shader;
 pub mod text;

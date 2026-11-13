@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use winit::window::Window;
 
-use crate::backend::pass::RenderPassBuilder;
+use super::pass::RenderPassBuilder;
 
 use super::context;
 
@@ -56,6 +56,7 @@ impl Renderer {
         self.conf.width = size.width;
         self.conf.height = size.height;
         self.surface.configure(context::device(), &self.conf);
+        super::target::resize_window_targets([size.width, size.height]);
     }
 
     pub fn begin_frame<'a>(&'a self, window: &'a Window) -> Result<Option<Frame<'a>>, &'a str> {
@@ -111,11 +112,21 @@ pub struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
+    pub fn execute(
+        &mut self,
+        passes: &mut [super::pass::PassContext],
+        data: &mut super::frame_data::FrameData,
+    ) -> Result<(), super::pass::PassError> {
+        super::pass::execute(passes, &mut self.encoder, &self.view, data)
+    }
+
     pub(crate) fn size_in_pixels(&self) -> [u32; 2] {
         let size = self.texture_surface.texture.size();
         [size.width, size.height]
     }
 
+    #[deprecated(note = "Utiliser Frame::execute à la place")]
+    #[allow(unused)]
     pub fn render(&mut self, draw: impl FnOnce(&mut wgpu::RenderPass<'_>)) {
         let mut pass = RenderPassBuilder::new()
             .with_label("Test Pass")

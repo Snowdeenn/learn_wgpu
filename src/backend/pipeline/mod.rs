@@ -6,7 +6,10 @@
 #![allow(unused)]
 
 mod context;
+pub mod compute;
+pub mod storage;
 pub use context::*;
+pub use storage::{PipelineId, get, register, remove};
 
 use crate::backend::context as gpu_context;
 
@@ -252,6 +255,13 @@ impl<'a> RenderPipelineBuilder<'a> {
     pub fn with_color_format(mut self, format: wgpu::TextureFormat) -> Self {
         let state = self.color_state.get_or_insert(Self::DEFAULT_COLOR_STATE);
         state.format = format;
+        self
+    }
+
+    /// Set the complete blend state. None disables blending.
+    pub fn with_blend(mut self, blend: Option<wgpu::BlendState>) -> Self {
+        let state = self.color_state.get_or_insert(Self::DEFAULT_COLOR_STATE);
+        state.blend = blend;
         self
     }
 

@@ -57,6 +57,8 @@ macro_rules! define_pipeline_context {
     };
 }
 
+/// Optional `blend: Option<wgpu::BlendState>` goes before `bind_group`.
+/// Omitting it preserves the builder's default blending; `None` disables blending.
 #[macro_export]
 macro_rules! pipeline_context {
     (
@@ -64,6 +66,7 @@ macro_rules! pipeline_context {
             shader: $shader:expr,
             format: $format:expr,
             $(fragment: $fragment:expr,)?
+            $(blend: $blend:expr,)?
             bind_group: [$(($layout:expr, $($group:expr)?)),* $(,)?],
             $(vertex_buffer: [$(($vb_layout:expr, $vb:expr)),* $(,)?],)?
             index_buffer: $ib:expr $(,)?
@@ -86,6 +89,8 @@ macro_rules! pipeline_context {
         )
         .with_vertex_entry_point("vs_main")
         .with_color_format($format);
+
+        $(let builder = builder.with_blend($blend);)?
 
         $(
             let builder = builder
