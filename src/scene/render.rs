@@ -81,6 +81,8 @@ crate::define_render_operation! {
         // quel que soit le mode choisi pour les objets de la scène.
         backend::bind(&*mesh, pass);
 
+        particle::prepare_registered_effects();
+
         particle::for_each_prepared_effect(|instances| {
             shape::draw_all(instances.shape(), pass);
         });

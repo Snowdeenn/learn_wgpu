@@ -167,6 +167,10 @@ impl EffectInstance {
         }
         &mut self.render_output
     }
+
+    pub(crate) fn render_output_mut(&mut self) -> &mut RenderModuleOutput {
+        &mut self.render_output
+    }
 }
 
 #[cfg(test)]

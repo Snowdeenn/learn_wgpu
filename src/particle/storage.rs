@@ -26,14 +26,23 @@ pub fn update_effects(dt: f32) {
     }
 }
 
-pub(crate) fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOutput)) {
+pub fn prepare_registered_effects() {
     let mut effects = effect_storage().write().unwrap();
     for effect in effects.iter_mut() {
-        visit(effect.prepare());
+        effect.prepare();
     }
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+pub(crate) fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOutput)) {
+    let mut effects = effect_storage().write().unwrap();
+    for effect in effects.iter_mut() {
+        visit(effect.render_output_mut());
+    }
+}
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn remove_effect(id: Id<EffectInstance>) -> bool {
     let removed = effect_storage().write().unwrap().remove(id);
     removed.is_some()
