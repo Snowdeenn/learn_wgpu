@@ -58,7 +58,7 @@ crate::define_render_operation! {
 
 
 
-        text::draw_all(pass)?;
+
         Ok(())
     }
 }
@@ -94,6 +94,14 @@ crate::define_render_operation! {
                 instances.sprite(),
             );
         });
+        Ok(())
+    }
+}
+
+crate::define_render_operation! {
+    SceneText {}
+    execute(_this, pass, _frame) {
+        text::draw_all(pass)?;
         Ok(())
     }
 }
@@ -140,7 +148,7 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
     };
 
     let particle_op = ParticleOperation {
-        pipelines,
+        pipelines: rendering.particle_pipelines,
     };
 
     let blur_vertical = BlurVerticalOperation {
@@ -161,6 +169,7 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
     };
 
     let target = rendering.target;
+    let depth_target = rendering.depth.id();
     let blur_target_a = rendering.blur.target_a;
     let blur_target_b = rendering.blur.target_b;
 
@@ -169,7 +178,8 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
         PassTarget::Offscreen(target),
         wgpu::LoadOp::Clear(wgpu::Color::BLACK),
         operation,
-    ));
+    ).with_depth(depth_target));
+    rendering.passes.push(pass::render(PassTarget::Offscreen(target), wgpu::LoadOp::Load, SceneTextOperation {}));
     rendering.passes.push(pass::render(
         PassTarget::Offscreen(blur_target_a),
         wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),

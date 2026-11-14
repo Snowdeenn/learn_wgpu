@@ -76,6 +76,8 @@ crate::define_pipeline_context!(Texture);
 crate::define_pipeline_context!(TextureArray);
 
 pub struct SceneRendering {
+    pub depth: crate::backend::depth::DepthTarget,
+    pub particle_pipelines: ScenePipelines,
     pub data: FrameData,
     pub instances: InstanceId<Dummy>,
     pub passes: PassList,

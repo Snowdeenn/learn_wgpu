@@ -13,7 +13,8 @@ pub struct RenderInstance {
     pub layer: u32,
     /// Rotation in radians.
     pub rotation: f32,
-    pub _padding: [u32; 2],
+    pub depth: f32,
+    pub _padding: u32,
     pub uv_min: [f32; 2],
     pub uv_max: [f32; 2],
 }

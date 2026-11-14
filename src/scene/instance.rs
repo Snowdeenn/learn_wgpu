@@ -6,6 +6,8 @@ pub struct Dummy {
     pub offset: [f32; 2],
     pub scale: [f32; 2],
     pub sprite: backend::Sprite,
+    /// Local ground anchor, relative to offset.y (positive Y points down).
+    pub ground_y: f32,
 }
 
 impl backend::shape::ShapeInstance for Dummy {
@@ -31,7 +33,8 @@ impl backend::SpriteInstance for Dummy {
             scale: self.scale,
             layer,
             rotation: 0.0,
-            _padding: [0; 2],
+            depth: backend::depth::depth_from_ground_y(self.offset[1] + self.ground_y, -10_000.0, 10_000.0),
+            _padding: 0,
             uv_min: [0.0; 2],
             uv_max: [1.0; 2],
         }

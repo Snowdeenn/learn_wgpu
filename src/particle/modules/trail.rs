@@ -50,7 +50,8 @@ impl RenderModule for RenderTrail {
                         scale: [length, self.width],
                         layer: 0,
                         rotation: delta[1].atan2(delta[0]),
-                        _padding: [0; 2],
+                        depth: 0.0, // JSP
+                        _padding: 0,
                         uv_min: [0.0; 2],
                         uv_max: [1.0; 2],
                     },

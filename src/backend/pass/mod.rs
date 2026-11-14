@@ -18,6 +18,7 @@ pub enum PassContext {
         target: PassTarget,
         load: wgpu::LoadOp<wgpu::Color>,
         store: wgpu::StoreOp,
+        depth: Option<RenderTargetId>,
         operation: Box<dyn RenderOperation>,
     },
     #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
@@ -35,6 +36,7 @@ pub fn render(
         target: target.into(),
         load,
         store: wgpu::StoreOp::Store,
+        depth: None,
         operation: Box::new(operation),
     }
 }
@@ -48,6 +50,7 @@ pub fn compute(operation: impl ComputeOperation + 'static) -> PassContext {
 
 #[derive(Debug)]
 pub enum PassError {
+    InvalidDepthTarget(RenderTargetId),
     MissingTarget(RenderTargetId),
     InvalidColorTarget(RenderTargetId),
     MissingPipeline,
@@ -59,6 +62,7 @@ pub enum PassError {
 impl std::fmt::Display for PassError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidDepthTarget(id) => write!(f, "Invalid or mismatched depth target: {id}"),
             Self::MissingTarget(id) => write!(f, "Unknown pass target: {id}"),
             Self::InvalidColorTarget(id) => {
                 write!(f, "Target is not a color render attachment: {id}")
@@ -90,5 +94,12 @@ impl From<BindingSetError> for PassError {
 impl From<TextError> for PassError {
     fn from(error: TextError) -> Self {
         Self::Text(error)
+    }
+}
+
+impl PassContext {
+    pub fn with_depth(mut self, target: RenderTargetId) -> Self {
+        if let Self::Render { depth, .. } = &mut self { *depth = Some(target); }
+        self
     }
 }

@@ -363,6 +363,7 @@ fn particle_shaders_validate_and_keep_the_instance_layout() {
         assert_eq!(span, 64);
         for (name, offset) in [
             ("rotation", std::mem::offset_of!(RenderInstance, rotation)),
+            ("depth", std::mem::offset_of!(RenderInstance, depth)),
             ("_padding1", std::mem::offset_of!(RenderInstance, _padding)),
             ("uv_min", std::mem::offset_of!(RenderInstance, uv_min)),
             ("uv_max", std::mem::offset_of!(RenderInstance, uv_max)),

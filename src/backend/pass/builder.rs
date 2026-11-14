@@ -218,6 +218,12 @@ impl<'a> RenderPassBuilder<'a> {
     }
 
     /// Return the built color and depth attachments.
+    pub fn with_depth_stencil_descriptor(mut self, descriptor: wgpu::RenderPassDepthStencilAttachment<'a>) -> Self {
+        self.depth_stencil_attachment = Some(descriptor);
+        self
+    }
+
+    /// Return the built color and depth attachments.
     pub fn into_inner(
         self,
     ) -> (

@@ -4,8 +4,8 @@ struct Dummy {
     scale: vec2f,
     layer: u32,
     rotation: f32,
+    depth: f32,
     _padding1: u32,
-    _padding2: u32,
     uv_min: vec2f,
     uv_max: vec2f,
 }
@@ -34,18 +34,21 @@ var<uniform> cam: UniCamera;
 
 @vertex
 fn vs_main(vertex: Vertex, @builtin(instance_index) instance_index: u32) -> VsOuput {
-    var ouput: VsOuput;
+    var output: VsOuput;
 
     let dummy = dummies[instance_index];
     let angle = dummy.rotation;
     let local = vertex.pos * dummy.scale;
-    let rotated = vec2f(local.x * cos(angle) - local.y * sin(angle),
-                        local.x * sin(angle) + local.y * cos(angle));
-    ouput.position = cam.view * vec4f(rotated + dummy.offset, 0.0, 1.0);
-    ouput.texcoord = dummy.uv_min + vertex.uv * (dummy.uv_max - dummy.uv_min);
-    ouput.color = dummy.color;
+    let rotated = vec2f(
+            local.x * cos(angle) - local.y * sin(angle),
+            local.x * sin(angle) + local.y * cos(angle),
+        );
+    output.position = cam.view * vec4f(rotated + dummy.offset, 0.0, 1.0);
+    output.position.z = dummy.depth * output.position.w;
+    output.texcoord = dummy.uv_min + vertex.uv * (dummy.uv_max - dummy.uv_min);
+    output.color = dummy.color;
 
-    return ouput;
+    return output;
 }
 
 @group(2) @binding(0)
@@ -54,6 +57,17 @@ var tex: texture_2d<f32>;
 var tex_sampler: sampler;
 
 @fragment
-fn fs_main(fs_input: VsOuput) -> @location(0) vec4f {
-    return textureSample(tex, tex_sampler, fs_input.texcoord) * fs_input.color;
+fn fs_cutout(input: VsOuput) -> @location(0) vec4f {
+    let color = textureSample(tex, tex_sampler, input.texcoord) * input.color;
+
+    if color.a < 0.5 {
+        discard;
+    }
+
+    return vec4f(color.rgb, 1.0);
+}
+
+@fragment
+fn fs_main(input: VsOuput) -> @location(0) vec4f {
+    return textureSample(tex, tex_sampler, input.texcoord) * input.color;
 }

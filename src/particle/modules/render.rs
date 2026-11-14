@@ -38,7 +38,8 @@ impl RenderModule for RenderSprite {
                     scale,
                     layer: 0,
                     rotation: 0.0,
-                    _padding: [0; 2],
+                    depth: 0.0, // JSP
+                    _padding: 0,
                     uv_min: [0.0; 2],
                     uv_max: [1.0; 2],
                 },
@@ -79,7 +80,8 @@ impl RenderModule for RenderShape {
                     scale,
                     layer: 0,
                     rotation: 0.0,
-                    _padding: [0; 2],
+                    depth: 0.0, // JSP
+                    _padding: 0,
                     uv_min: [0.0; 2],
                     uv_max: [1.0; 2],
                 },

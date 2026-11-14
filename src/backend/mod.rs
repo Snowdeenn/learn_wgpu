@@ -10,6 +10,7 @@ pub mod renderer;
 pub mod sampler;
 pub mod texture;
 pub mod target;
+pub mod depth;
 
 pub mod instances;
 

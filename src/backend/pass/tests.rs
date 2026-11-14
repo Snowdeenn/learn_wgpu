@@ -95,6 +95,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("GPU adapter required for this test");
     context::init(&adapter);
+    depth_ordering_and_resize();
     let device = context::device();
 
     let source = target::register(descriptor(TargetSize::Window {
@@ -409,4 +410,109 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     assert!(target::remove(output));
     assert!(target::remove(fixed));
     assert!(target::remove(replacement));
+}
+
+fn depth_ordering_and_resize() {
+    use crate::backend::depth;
+    struct DrawDepth(wgpu::RenderPipeline);
+    impl RenderOperation for DrawDepth {
+        fn execute(
+            &mut self,
+            pass: &mut wgpu::RenderPass<'_>,
+            _: &mut FrameData,
+        ) -> Result<(), PassError> {
+            pass.set_pipeline(&self.0);
+            // Near green first, far red second: depth must keep green visible.
+            pass.draw(0..3, 0..2);
+            Ok(())
+        }
+    }
+    let device = context::device();
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Depth regression"),
+        source: wgpu::ShaderSource::Wgsl(r#"
+            struct Out { @builtin(position) pos: vec4f, @location(0) color: vec4f }
+            @vertex fn vs_main(@builtin(vertex_index) v: u32, @builtin(instance_index) i: u32) -> Out {
+                let positions = array<vec2f, 3>(vec2f(-1., -1.), vec2f(3., -1.), vec2f(-1., 3.));
+                var o: Out;
+                o.pos = vec4f(positions[v], select(0.2, 0.8, i == 1u), 1.);
+                o.color = select(vec4f(0.,1.,0.,1.), vec4f(1.,0.,0.,1.), i == 1u);
+                return o;
+            }
+            @fragment fn fs_main(o: Out) -> @location(0) vec4f { return o.color; }
+        "#.into()),
+    });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: None,
+        bind_group_layouts: &[],
+        immediate_size: 0,
+    });
+    let pipeline = pipeline::RenderPipelineBuilder::from_layout(&layout, &shader)
+        .with_vertex_entry_point("vs_main")
+        .with_fragment_shader(&shader)
+        .with_fragment_entry_point("fs_main")
+        .with_color_format(wgpu::TextureFormat::Rgba8Unorm)
+        .with_depth_stencil(depth::opaque_state())
+        .with_blend(None)
+        .build();
+    let color = target::register(descriptor(TargetSize::Window {
+        width: 4,
+        height: 4,
+    }));
+    let depth = depth::DepthTarget::new([4, 4]);
+    let mut passes = vec![
+        render(
+            color,
+            wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+            DrawDepth(pipeline),
+        )
+        .with_depth(depth.id()),
+    ];
+    let staging = device.create_buffer(&wgpu::BufferDescriptor {
+        label: None,
+        size: 8 * 256,
+        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    for size in [4, 8] {
+        target::resize_window_targets([size, size]);
+        assert_eq!(target::get(depth.id()).unwrap().size(), [size, size]);
+        let color_target = target::get(color).unwrap();
+        let mut encoder = device.create_command_encoder(&Default::default());
+        execute(
+            &mut passes,
+            &mut encoder,
+            color_target.texture().view(),
+            &mut FrameData::new(),
+        )
+        .unwrap();
+        encoder.copy_texture_to_buffer(
+            color_target.texture().as_raw().as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &staging,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(256),
+                    rows_per_image: None,
+                },
+            },
+            wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+        );
+        context::queue().submit([encoder.finish()]);
+        let pixels = read_pixels(&staging);
+        for y in 0..size as usize {
+            for x in 0..size as usize {
+                assert_eq!(
+                    &pixels[y * 256 + x * 4..y * 256 + x * 4 + 4],
+                    &[0, 255, 0, 255]
+                );
+            }
+        }
+    }
+    target::remove(color);
+    target::remove(depth.id());
 }

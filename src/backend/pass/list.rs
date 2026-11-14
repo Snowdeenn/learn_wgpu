@@ -19,6 +19,7 @@ pub fn execute(
                 target,
                 load,
                 store,
+                depth,
                 operation,
             } => {
                 let view = match *target {
@@ -36,11 +37,43 @@ pub fn execute(
                         target.texture().view().clone()
                     }
                 };
-                let mut pass = RenderPassBuilder::new()
+
+                let depth_target = depth
+                    .map(|id| target::get(id).ok_or(PassError::MissingTarget(id)))
+                    .transpose()?;
+
+                if let Some(depth_target) = &depth_target {
+                    let texture = depth_target.texture().as_raw();
+                    if texture.format() != crate::backend::depth::FORMAT
+                        || !texture
+                            .usage()
+                            .contains(wgpu::TextureUsages::RENDER_ATTACHMENT)
+                        || texture.size() != view.texture().size()
+                        || texture.sample_count() != view.texture().sample_count()
+                    {
+                        return Err(PassError::InvalidDepthTarget(depth.unwrap()));
+                    }
+                }
+
+                let mut builder = RenderPassBuilder::new()
                     .with_color_attachment(&view, |attachment| {
                         attachment.with_load_op(*load).with_store_op(*store)
-                    })
-                    .begin(encoder);
+                    });
+
+                if let Some(depth_target) = &depth_target {
+                    builder = builder.with_depth_stencil_descriptor(
+                        wgpu::RenderPassDepthStencilAttachment {
+                            view: depth_target.texture().view(),
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        },
+                    );
+                }
+
+                let mut pass = builder.begin(encoder);
                 operation.execute(&mut pass, frame)?;
             }
             PassContext::Compute { operation } => {

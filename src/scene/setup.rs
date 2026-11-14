@@ -81,6 +81,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     let triangle = backend::shape::register(triangle_mesh);
 
     let inst_1 = Dummy {
+        ground_y: 0.0,
         mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
@@ -93,6 +94,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     instance_data.push(inst_1);
 
     let inst_2 = Dummy {
+        ground_y: 0.0,
         mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
@@ -105,6 +107,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     instance_data.push(inst_2);
 
     let inst_3 = Dummy {
+        ground_y: 0.0,
         mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
@@ -120,6 +123,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     instance_data.push(inst_3);
 
     let inst_4 = Dummy {
+        ground_y: 0.0,
         mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
@@ -135,6 +139,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     instance_data.push(inst_4);
 
     let inst_5 = Dummy {
+        ground_y: 0.0,
         mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
@@ -159,6 +164,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     let (id_atlas, ids_regions) = backend::register_atlas(atlas, regions);
 
     let inst_6 = Dummy {
+        ground_y: 0.0,
         mesh: rectangle,
         color: [rand(0.0, 1.0), rand(0.0, 1.0), rand(0.0, 1.0), 1.0],
         scale: [100.0, 100.0],
@@ -170,6 +176,10 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
         },
     };
     instance_data.push(inst_6);
+
+    for instance in &mut instance_data {
+        instance.ground_y = instance.scale[1] * 0.5;
+    }
 
     let instance_buffer = buffer::storage::<backend::RenderInstance>(instance_data.len() as u64)
         .expect("Impossible d'allouer le buffer d'instances");
@@ -244,16 +254,71 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
         }
     };
 
+    let scene_texture_pipe_ctx = crate::pipeline_context! {
+        Texture {
+            shader: &texture_shader,
+            format: format,
+            fragment: "fs_cutout",
+            blend: None,
+            depth: backend::depth::opaque_state(),
+            bind_group: [
+                (instance_lay,),
+                (cam_layout, cam_group.clone()),
+                (lay_a,),
+            ],
+            vertex_buffer: [(Vertex::layout(), &vertex_buffer)],
+            index_buffer: Some(&index_buffer),
+        }
+    };
+
+    let scene_tex_array_pipe_ctx = crate::pipeline_context! {
+        TextureArray {
+            shader: &tex_array_shader,
+            format: format,
+            fragment: "fs_cutout",
+            blend: None,
+            depth: backend::depth::opaque_state(),
+            bind_group: [
+                (instance_lay,),
+                (cam_layout, cam_group.clone()),
+                (tex_array_lay_a,)
+            ],
+            vertex_buffer: [(Vertex::layout(), &vertex_buffer)],
+            index_buffer: Some(&index_buffer),
+        }
+    };
+
+    let scene_mesh_pipe_ctx = crate::pipeline_context! {
+        Mesh {
+            shader: &mesh_shader,
+            format: format,
+            fragment: "fs_cutout",
+            blend: None,
+            depth: backend::depth::opaque_state(),
+            bind_group: [
+                (instance_lay,),
+                (cam_layout, cam_group.clone())
+            ],
+            vertex_buffer: [(Vertex::layout(), &vertex_buffer)],
+            index_buffer: None,
+        }
+    };
+
     let cam = Camera2D::new();
 
     resources.insert(InstanceBuffer(instance_buffer));
     resources.insert(IndexBuffer(index_buffer));
     resources.insert(VertexBuffer(vertex_buffer));
     resources.insert(ScenePipeline::default());
-    resources.insert(ScenePipelines {
+    let particle_pipelines = ScenePipelines {
         mesh: backend::pipeline::register(mesh_pipe_ctx),
         texture: backend::pipeline::register(texture_pipe_ctx),
         texture_array: backend::pipeline::register(tex_array_pipe_ctx),
+    };
+    resources.insert(ScenePipelines {
+        mesh: backend::pipeline::register(scene_mesh_pipe_ctx),
+        texture: backend::pipeline::register(scene_texture_pipe_ctx),
+        texture_array: backend::pipeline::register(scene_tex_array_pipe_ctx),
     });
 
     resources.insert(CamBuffer(cam_buff));
@@ -310,6 +375,8 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     let composition = crate::effects::composite::CompositeEffect::new(blur.target_a, format);
 
     resources.insert(SceneRendering {
+        depth: backend::depth::DepthTarget::new(resolution),
+        particle_pipelines,
         data,
         instances,
         passes: Vec::new(),

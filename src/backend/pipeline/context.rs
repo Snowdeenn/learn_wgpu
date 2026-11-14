@@ -67,6 +67,7 @@ macro_rules! pipeline_context {
             format: $format:expr,
             $(fragment: $fragment:expr,)?
             $(blend: $blend:expr,)?
+            $(depth: $depth:expr,)?
             bind_group: [$(($layout:expr, $($group:expr)?)),* $(,)?],
             $(vertex_buffer: [$(($vb_layout:expr, $vb:expr)),* $(,)?],)?
             index_buffer: $ib:expr $(,)?
@@ -91,6 +92,7 @@ macro_rules! pipeline_context {
         .with_color_format($format);
 
         $(let builder = builder.with_blend($blend);)?
+        $(let builder = builder.with_depth_stencil($depth);)?
 
         $(
             let builder = builder

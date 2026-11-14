@@ -62,7 +62,8 @@ impl RenderModule for RenderAnimatedSprite {
                     scale: scales[i],
                     layer,
                     rotation: rotations[i],
-                    _padding: [0; 2],
+                    depth: 0.0, // JSP
+                    _padding: 0,
                     uv_min: [0.0; 2],
                     uv_max: [1.0; 2],
                 },

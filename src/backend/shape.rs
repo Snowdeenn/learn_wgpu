@@ -5,6 +5,7 @@ use new_collection::{Arena, Id};
 
 use super::buffer::{self, Buffer, Index, Vertex};
 use super::{RenderInstance, instances::cache};
+use crate::backend;
 use crate::backend::instances::Instance;
 use crate::geometry::mesh::{Mesh, Vertex as MeshVertex};
 
@@ -62,6 +63,7 @@ pub struct Shape {
     pub position: [f32; 2],
     pub scale: [f32; 2],
     pub color: [f32; 4],
+    pub ground_y: f32,
 }
 
 impl Instance for Shape {}
@@ -78,7 +80,9 @@ impl ShapeInstance for Shape {
             color: self.color,
             layer: 0,
             rotation: 0.0,
-            _padding: [0; 2],
+            // TODO: Changer les valeurs min_y et max_y pour pas les hardcoder
+            depth: backend::depth::depth_from_ground_y(self.ground_y, 0.0, 1080.0),
+            _padding: 0,
             uv_min: [0.0; 2],
             uv_max: [1.0; 2],
         }
