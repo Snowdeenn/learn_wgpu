@@ -1,0 +1,369 @@
+VELUM — DESIGN INITIAL
+======================
+
+Objectif
+--------
+Séparer l'application du backend en organisant le rendu autour de scènes
+configurables. Velum pilote les scènes ; chaque scène est le point de connexion
+vers le backend et conserve la liberté d'utiliser son API.
+
+Exemples de scènes : World, Menu, Inventory.
+Ce document décrit une architecture cible ; les signatures restent à concevoir.
+
+Schéma d'organisation
+--------------------
+
+    APPLICATION HÔTE (client, banc d'essai, autre application)
+    | Possède la logique métier et la boucle de l'application.
+    | Demande les changements de scène et fournit les données utiles.
+    v
+    VELUM
+    | Enregistre les scènes et identifie la scène active.
+    | Orchestre activation, mise à jour et rendu.
+    |
+    +------------------+------------------+
+    |                  |                  |
+    v                  v                  v
+    WorldScene         MenuScene          InventoryScene
+    +------------------+------------------+
+    | Implémentent le contrat Scene.
+    | Possèdent leur état de rendu et leur configuration.
+    | Préparent leurs ressources et leurs passes avec l'API du backend.
+    v
+    BACKEND PARTAGÉ
+    | Contexte GPU, buffers, textures, pipelines, passes, cibles.
+    | Acquisition, soumission et présentation des frames.
+    v
+    WGPU / GPU
+
+Les flèches indiquent le sens du pilotage. Le backend ne connaît ni Velum,
+ni le contrat Scene, ni les types métier World, Menu ou Inventory.
+Velum orchestre aussi le cycle de frame du backend lors du rendu.
+
+Responsabilités
+---------------
+
+Application hôte
+  - Possède les données métier : monde, inventaire, navigation, réseau, etc.
+  - Décide quand ouvrir le menu ou passer au monde.
+  - Fournit aux scènes les données dont elles ont besoin.
+  - Peut intégrer Velum dans sa propre boucle.
+
+Velum
+  - Conserve les scènes enregistrées et leur identité.
+  - Active et désactive les scènes sans recréer le backend.
+  - Appelle les points d'entrée du contrat Scene.
+  - Coordonne le rendu dans la frame de destination.
+  - Ne contient pas la logique spécifique du client ou du banc d'essai.
+
+Scene (contrat commun)
+  - Constitue la connexion entre une scène de l'application et le backend.
+  - Définit les points d'entrée nécessaires : préparation, activation,
+    désactivation, mise à jour, redimensionnement et rendu.
+  - Conserve sa configuration : caméra, cibles, passes et effets, selon le besoin.
+  - Utilise directement l'API du backend pour construire son rendu.
+  - N'impose pas de modèle d'objets métier à l'application hôte.
+
+Backend
+  - Fournit les outils de rendu indépendamment des scènes.
+  - Partage le contexte GPU entre les scènes.
+  - Reste utilisable directement, sans Velum.
+  - Ne dépend pas de l'initialisation d'une scène particulière.
+
+Objets de rendu à préciser
+-------------------------
+
+SceneRenderer
+  Partie persistante du rendu d'une scène : ressources, passes et configuration.
+  Peut servir à composer une implémentation de Scene ; ne remplace pas Velum.
+  À introduire seulement si cette séparation simplifie réellement l'API.
+
+SceneFrame
+  Description CPU du contenu à rendre pour une image de la scène.
+  Ne possède ni encodeur, ni texture de surface, ni contexte GPU.
+  SceneRenderer traduit cette description en opérations du backend.
+  À distinguer de la frame du backend, potentiellement commune à plusieurs scènes.
+
+Cycle cible
+-----------
+
+  1. L'hôte initialise le backend et Velum.
+  2. Il enregistre World, Menu et Inventory.
+  3. Il demande l'activation d'une scène.
+  4. Velum prépare la scène si nécessaire, puis l'active.
+  5. À chaque image : mise à jour, acquisition de la frame, rendu de la scène,
+     puis soumission et présentation.
+  6. Lors d'un changement : désactivation de l'ancienne scène et activation
+     de la suivante. Le backend et les ressources conservées restent disponibles.
+
+Changer de scène ne signifie pas changer de contexte GPU.
+La politique de conservation ou de libération des ressources reste à définir.
+
+Intégration
+-----------
+
+  Boucle winit ---- adaptateur optionnel ----+
+                                            +---- Velum ---- Scene ---- Backend
+  Boucle du client -------------------------+
+
+L'adaptateur winit traduit les événements et appelle Velum. Il reste séparé
+du système de scènes pour permettre une intégration dans d'autres hôtes.
+Les interactions et les données métier sont transmises explicitement ; Scene
+ne doit pas imposer les événements winit comme unique interface d'entrée.
+
+Évolution possible : pile de scènes
+----------------------------------
+
+  Sommet : Inventory (interface au premier plan)
+           World     (visible derrière, éventuellement en pause)
+
+Une SceneStack pourrait compléter la scène active unique. Il faudra alors
+définir quelles scènes reçoivent les entrées, sont mises à jour et sont rendues.
+Cette extension ne fait pas partie du premier contrat à figer.
+
+Application au projet actuel
+---------------------------
+
+  - Le banc d'essai devient un utilisateur de Velum avec sa propre Scene.
+  - Les appels à scene::setup et scene::render quittent l'adaptateur winit
+    et sont regroupés dans cette implémentation de Scene.
+  - Caméra, particules et panneau de debug restent des choix de cette scène.
+  - Le backend reste commun au banc d'essai et au futur client.
+  - Le contexte GPU global actuel devra être évalué pour permettre une
+    intégration explicite, sans imposer un état global à l'hôte.
+
+Prochaine étape de conception
+----------------------------
+
+Définir le contrat Rust minimal de Scene et les accès fournis à chaque étape :
+backend, données de l'hôte, frame, erreurs et durée de vie des ressources.
+Puis valider ce contrat en y raccordant la scène existante du banc d'essai.
+
+
+ÉTAPE 1 — SCENERENDERER
+======================
+
+Référence examinée
+-----------------
+Dans le client, SceneFrame contient une description CPU (primitives, caméra,
+effets demandés). SceneRenderer possède les moyens persistants de la traduire
+en rendu backend. On reprend cette séparation, pas les dépendances à Prism
+ni les catégories métier fixes world/vfx/hud.
+
+Nature de l'objet
+----------------
+SceneRenderer est une structure concrète fournie par le moteur.
+Une scène logique peut posséder son SceneRenderer. Plusieurs scènes peuvent
+donc conserver des configurations différentes sur un même backend.
+Le contrat Scene et le pilote Velum seront définis après ces outils.
+
+Responsabilité centrale
+-----------------------
+Transformer le contenu décrit par une SceneFrame en passes backend, selon
+une configuration de rendu persistante, puis encoder ces passes dans une
+frame backend fournie par l'appelant.
+
+Ce qu'il conserve
+-----------------
+  - La configuration des couches de rendu et leur ordre.
+  - Les associations entre couches, vues/caméras et destinations.
+  - Les configurations de passes et d'effets.
+  - Les ressources de travail nécessaires à cette configuration : cibles
+    intermédiaires, depth optionnelle, buffers et caches réutilisables.
+  - Les identifiants ou références des ressources backend qu'il utilise.
+
+Posséder un identifiant ne signifie pas posséder la ressource correspondante.
+Il faudra distinguer les ressources créées pour ce renderer des assets partagés
+afin de définir leur libération sans invalider une autre scène.
+
+Ce qu'il reçoit lors d'un rendu
+------------------------------
+  - Le contenu de la scène pour cette image (future SceneFrame).
+  - La frame backend où encoder le rendu.
+  - Les informations de destination et les accès backend requis.
+
+Il reste à décider si SceneFrame sera empruntée ou consommée. Ce choix dépendra
+de sa structure et de la politique de réutilisation de ses allocations.
+
+Ce qui reste ailleurs
+--------------------
+  - Logique du monde, inventaire, navigation et entrées : application.
+  - Activation et transition entre scènes : futur pilote Velum.
+  - Création de fenêtre et événements : hôte ou adaptateur.
+  - Acquisition de surface, soumission et présentation : cycle backend,
+    coordonné par l'appelant pour l'image entière.
+  - Assets partagés entre scènes : stockage backend ou bibliothèque d'assets.
+
+Configuration extensible
+-----------------------
+Le renderer ne doit pas imposer world, vfx et hud à toutes les applications.
+Ces catégories deviennent des couches configurables, identifiées explicitement.
+Une configuration simple doit pouvoir rendre une seule couche sans effets.
+Une configuration plus riche peut définir plusieurs vues et passes d'effets.
+Les opérations personnalisées du backend doivent rester utilisables : les
+primitives de haut niveau ne doivent pas être l'unique façon de dessiner.
+Le point d'extension précis sera défini à partir de PassList/RenderOperation.
+
+Raccord aux outils actuels
+-------------------------
+  SceneRendering : point de départ concret, mais contient aujourd'hui des
+    choix spécifiques au banc d'essai (Dummy, particules, flou, composition).
+  PassList : outil existant pour ordonner et encoder les passes.
+  FrameData : stockage CPU persistant actuel ; son nom ne signifie pas que
+    son contenu est temporaire. Il ne sera pas assimilé automatiquement à SceneFrame.
+  backend::renderer::Frame : destination d'encodage de l'image entière.
+
+Ces outils peuvent être réutilisés sans déplacer les choix du banc d'essai
+dans un renderer générique. Le modèle exact des couches sera défini avant
+d'introduire une nouvelle structure Rust.
+
+Comportements à garantir
+-----------------------
+  - Changer de scène ne recrée pas le contexte GPU.
+  - Un renderer inactif peut conserver sa configuration et ses ressources.
+  - Plusieurs renderers peuvent encoder dans la même frame backend.
+  - Le redimensionnement adapte ses cibles dépendantes de la destination.
+  - Une scène vide reste un cas valide.
+  - Une erreur de préparation ou d'encodage remonte à l'appelant.
+
+Suite immédiate
+---------------
+Préciser une couche de rendu minimale : identité, vue, destination, politique
+d'effacement et contenu accepté. Cela permettra de fixer la première forme
+de SceneRenderer avant de concevoir SceneFrame.
+
+struct SceneRenderer {
+  passes: PassList,
+}
+
+struct SceneFrame {
+  data: RenderData
+}
+
+. RenderData stockage extensible qui efface les types, on utilise des id typé pour retrouver les types.
+
+. Comment est ce qu'elles sont stocker ?.
+  - Pour les instances ils faut utiliser les stockages déjà présent (InstanceStorage et TextStorage ? si il existe lui).
+
+. Comment respecter un format pour que le backend puisse dessiner ?.
+  - On utilise les traits défini dans le backend (il utilise déjà ces traits).
+  - Les types de l'application implémentent les traits pour qu'ils soient dessinable.
+
+. Déjà c'est quoi les format utiliser pour le dessin sur le backend actuellement ?.
+ - Trait SpriteInstance TextInstance ShapeInstance.
+
+. C'est quoi le rôle de SceneFrame ?.
+  - SceneFrame est le point d'entrer des données de l'app vers le backend.
+  - Elle rassemble les données à dessiner pour une image et les rend accessibles aux opérations exécutées par SceneRenderer. 
+  - Elle n’est pas le stockage des commandes GPU encodées.
+  
+
+. Les données encoder elles vont ou ?,
+. Où vont les données et les commandes après leur traitement ?
+
+  - Les données de dessin préparées vont dans les ressources GPU du backend. 
+  - Les commandes de rendu vont dans l’encodeur de la frame backend, 
+    puis sont soumises au GPU. Les passes déterminent les cibles dans lesquelles le résultat est dessiné.
+
+
+PRÉCISIONS RETENUES — RENDERER ET DONNÉES
+========================================
+
+Ces précisions remplacent les propositions antérieures lorsqu'elles divergent.
+
+SceneRenderer
+  - Structure concrète du moteur, construite via un builder.
+  - Conserve une PassList ordonnée et les opérations de ces passes.
+  - Les PassContext référencent déjà les cibles et les politiques de chargement,
+    stockage et profondeur : aucune seconde déclaration dans le renderer.
+  - Les opérations conservent leur état et les handles de leurs entrées.
+  - Reçoit une frame backend et une SceneFrame pour encoder le rendu.
+  - N'acquiert, ne soumet et ne présente pas l'image lui-même.
+  - La propriété et la libération des ressources de scène restent à définir.
+
+SceneFrame
+  - Point d'entrée des données de dessin fournies par l'application.
+  - Peut être conservée et modifiée entre les images.
+  - Contient un stockage extensible avec plusieurs entrées possibles par type.
+  - Utilise des handles typés pour retrouver les données.
+  - Ne contient ni encodeur ni texture de surface.
+  - Réutilise les formats et traits publics de dessin du backend.
+  - Ne dépend pas du Resources propre à l'application.
+
+Handles
+  - La scène conserve les handles utiles pour modifier ses données.
+  - Les opérations conservent des copies pour accéder à leurs entrées.
+  - Les données restent possédées par SceneFrame.
+  - Un handle appartient au stockage qui l'a créé.
+  - Une suppression invalide les copies du handle ; la réutilisation d'un slot
+    ne doit pas rendre un ancien handle valide.
+  - Un handle provenant d'une autre SceneFrame doit être rejeté explicitement.
+    Cette garantie doit être vérifiée dans l'implémentation, pas seulement documentée.
+
+Proposition d'API minimale à valider
+----------------------------------
+  SceneFrame::new() -> SceneFrame
+  insert<T: 'static>(value: T) -> RenderDataId<T>
+  get<T>(&self, id: &RenderDataId<T>) -> Option<&T>
+  get_mut<T>(&mut self, id: &RenderDataId<T>) -> Option<&mut T>
+  remove<T>(&mut self, id: &RenderDataId<T>) -> Option<T>
+
+RenderDataId<T> est copiable sans imposer T: Copy.
+Les champs internes du handle et du stockage restent privés.
+Le stockage vérifie l'identité du propriétaire, la validité du slot et le type.
+Les opérations traduisent une entrée absente en erreur de rendu explicite.
+Une donnée récupérée reste soumise aux emprunts Rust habituels.
+
+Raccord encore à concevoir
+-------------------------
+RenderOperation et ComputeOperation reçoivent aujourd'hui &mut FrameData.
+Il faudra adapter cette frontière pour accéder aux données extensibles sans
+ajouter une dépendance du backend vers Velum. Le stockage commun peut appartenir
+au backend, SceneFrame fournissant l'interface côté scènes. Son emplacement et
+la migration du FrameData actuel seront décidés avant l'implémentation.
+
+
+DÉCISION RETENUE — RENDERDATA REMPLACE FRAMEDATA ET SCENEFRAME
+============================================================
+
+Cette décision remplace les propositions précédentes concernant SceneFrame
+et son éventuel conteneur interne séparé.
+
+On fait évoluer le FrameData existant et on le renomme RenderData.
+Il n'y a qu'un seul objet de données : ni SceneFrame supplémentaire, ni wrapper.
+RenderData appartient à la couche backend et reste indépendant de l'application
+et du pilote Velum.
+
+Structure cible :
+
+  pub struct RenderData {
+      data: Arena<Box<dyn Any>>,
+  }
+
+API cible :
+  - new()
+  - insert<T: 'static>(value: T) -> RenderDataId<T>
+  - get<T>(&self, id: &RenderDataId<T>) -> Option<&T>
+  - get_mut<T>(&mut self, id: &RenderDataId<T>) -> Option<&mut T>
+  - remove<T>(&mut self, id: &RenderDataId<T>) -> Option<T>
+
+Les handles typés sont conservés par la scène et copiés dans les opérations
+qui en ont besoin. Les garanties de validité décrites plus haut restent requises.
+Les données utilisent les types et traits publics du backend pour être dessinées.
+Le stockage extensible n'impose plus les champs fixes instances et text.
+
+RenderOperation::execute et ComputeOperation::execute reçoivent &mut RenderData
+à la place de &mut FrameData. L'exécution des passes transmet ce même objet.
+
+Usage cible :
+
+  // Avoir pour la déclaration.
+  renderer.render(&mut backend_frame, &mut render_data)?;
+
+Répartition retenue :
+  - SceneRenderer conserve les passes et leurs opérations.
+  - RenderData conserve les données d'entrée de ces opérations.
+  - La frame backend reçoit les commandes encodées.
+
+SceneRenderer et RenderData peuvent être conservés entre les images.
+Ce document décrit le design ; le code actuel n'a pas encore été modifié.
