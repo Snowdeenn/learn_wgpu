@@ -12,6 +12,7 @@ use crate::backend::{
 crate::define_pipeline_context!(Blur);
 pub const MAX_BLUR_RADIUS: usize = 16;
 
+#[derive(Clone, Copy, PartialEq)]
 pub struct BlurSettings {
     pub spacing: f32,
     pub radius: u32,
@@ -125,6 +126,7 @@ pub struct BlurEffect {
     pub vertical_group: wgpu::BindGroup,
     pub horizontal_group: wgpu::BindGroup,
     pub settings: BlurSettings,
+    prev_settings: BlurSettings,
     vertical_params: Buffer<BlurParams, Uniform>,
     horizontal_params: Buffer<BlurParams, Uniform>,
 }
@@ -233,20 +235,33 @@ impl BlurEffect {
             vertical_group,
             horizontal_group,
             settings: blur_settings,
+            prev_settings: blur_settings,
             vertical_params: vertical_unif,
             horizontal_params: horizontal_unif,
         }
     }
-    pub fn prepare(&self) {
+    pub fn prepare(&mut self) {
+        if self.settings == self.prev_settings {
+            return;
+        }
+
+        let vertical = self.settings.params([0.0, 1.0]);
+        let horizontal = BlurParams {
+            direction: [1.0, 0.0],
+            ..vertical
+        };
+
+        self.prev_settings = self.settings;
+
         backend::write_buffer(
             &self.vertical_params,
             0,
-            &[self.settings.params([0.0, 1.0])],
+            &[vertical],
         );
         backend::write_buffer(
             &self.horizontal_params,
             0,
-            &[self.settings.params([1.0, 0.0])],
+            &[horizontal],
         );
     }
 }
