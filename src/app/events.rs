@@ -109,8 +109,13 @@ impl ApplicationHandler for App {
                     return;
                 };
 
-                match renderer.begin_frame(window) {
+                let acquire_start = std::time::Instant::now();
+                let acquired = renderer.begin_frame(window);
+                let acquire_elapsed = acquire_start.elapsed();
+                match acquired {
                     Ok(Some(mut frame)) => {
+                        self.resources.write_resource::<FrameTimings>().surface_acquire.record(acquire_elapsed);
+                        crate::backend::metrics::reset();
                         debug.begin_frame(window);
                         scene::debug_panel::run(debug, &self.resources);
 
@@ -132,7 +137,19 @@ impl ApplicationHandler for App {
 
                         debug.flush_into(window, &mut frame.encoder, &frame.view, size_in_pixels);
 
-                        frame.finish();
+                        let measure_wait = self.resources.read_resource::<FrameTimings>().measure_gpu_wait;
+                        let wait = frame.finish(measure_wait);
+                        let (slots, reserved) = crate::backend::instances::cache::memory_stats();
+                        let mut timings = self.resources.write_resource::<FrameTimings>();
+                        timings.render = crate::backend::metrics::snapshot();
+                        timings.instance_slots = slots;
+                        timings.instance_reserved_bytes = reserved;
+                        if let Some(wait) = wait {
+                            timings.gpu_wait.record(wait);
+                        } else if measure_wait {
+                            timings.measure_gpu_wait = false;
+                            eprintln!("Mesure d'attente GPU indisponible : poll a échoué");
+                        }
                     }
                     Ok(None) => {}
                     Err(error) => {

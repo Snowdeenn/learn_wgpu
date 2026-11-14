@@ -281,6 +281,7 @@ crate::define_render_operation! {
         backend::bind(&*blur, pass);
         pass.set_bind_group(0, &group, &[]);
         pass.set_bind_group(1, &this.direction, &[]);
+        crate::backend::metrics::draw();
         pass.draw(0..3, 0..1);
 
         Ok(())
@@ -303,6 +304,7 @@ crate::define_render_operation! {
         backend::bind(&*blur, pass);
         pass.set_bind_group(0, &group, &[]);
         pass.set_bind_group(1, &this.direction, &[]);
+        crate::backend::metrics::draw();
         pass.draw(0..3, 0..1);
 
         Ok(())

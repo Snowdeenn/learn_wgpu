@@ -10,6 +10,7 @@ use new_collection::Id;
 
 use crate::backend::pipeline::PipelineId;
 use crate::backend::target::RenderTargetId;
+use crate::backend;
 
 crate::unique_resource!(CamBuffer, Buffer<Mat4, Uniform>);
 crate::unique_resource!(InstanceBuffer, Buffer<crate::backend::RenderInstance, StorageRead>);
@@ -36,6 +37,12 @@ pub struct FrameTimings {
     pub simulation: CpuTiming,
     pub preparation: CpuTiming,
     pub render_encoding: CpuTiming,
+    pub surface_acquire: CpuTiming,
+    pub gpu_wait: CpuTiming,
+    pub measure_gpu_wait: bool,
+    pub render: backend::metrics::RenderMetrics,
+    pub instance_slots: usize,
+    pub instance_reserved_bytes: u64,
 }
 
 #[derive(Default)]

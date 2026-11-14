@@ -75,6 +75,7 @@ crate::define_render_operation! {
         backend::bind(&*composition, pass);
         pass.set_bind_group(0, &group, &[]);
         // Binder ici les paramètres de direction verticale.
+        crate::backend::metrics::draw();
         pass.draw(0..3, 0..1);
         Ok(())
     }

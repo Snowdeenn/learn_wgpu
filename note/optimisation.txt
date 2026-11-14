@@ -216,3 +216,16 @@ Les chemins sont relatifs à la racine du projet. Aucun de ces changements n'est
   Source : src/app/update.rs. Un dirty flag caméra/résolution peut éviter ce travail.
   La simulation GPU, le parallélisme et les changements de représentation restent des pistes
   ultérieures si les mesures montrent que les modules CPU dominent réellement le coût.
+
+Ajouter quelques mesures simples.
+Temps CPU de simulation/préparation/rendu, nombre de batches, uploads et mémoire réservée. Faire une référence en release pour comparer les changements ; ajouter ensuite les mesures GPU pour le flou. Les FPS seuls ne suffisent pas.
+
+Éviter les calculs et uploads inchangés du flou.
+Calculer le noyau une seule fois pour les deux directions, puis mettre à jour les uniforms uniquement quand les réglages changent. Supprimer les passes lorsque le noyau appliqué est réellement une identité.
+→ [blur.rs](/D:/projects/learn_wgpu/src/effects/blur.rs)
+
+Réutiliser les allocations temporaires par frame.
+Garder les opérations de passes et les vecteurs de batches au lieu de les reconstruire systématiquement. C’est une amélioration ciblée, sans grosse refonte.
+
+Optimiser ensuite selon les mesures.
+Si le GPU domine : tester le flou à demi-résolution. Si la préparation et les uploads dominent : éliminer les instances hors caméra et regrouper les accès aux atlas.

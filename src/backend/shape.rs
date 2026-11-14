@@ -130,6 +130,7 @@ pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgp
     pass.set_vertex_buffer(0, vertices.slice(vertex_range));
     pass.set_index_buffer(indices.slice(index_range), wgpu::IndexFormat::Uint32);
 
+    crate::backend::metrics::batch();
     for range in cache::chunk_ranges(batch.range.clone()) {
         let instance_count = range.end - range.start;
         let render_instances = instances[range.start as usize..range.end as usize]
@@ -137,6 +138,7 @@ pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgp
             .map(ShapeInstance::render_instance);
         let group = cache::prepare_render_instances(render_instances, range);
         pass.set_bind_group(0, &group, &[]);
+        crate::backend::metrics::draw();
         pass.draw_indexed(0..mesh.index_count, 0, 0..instance_count);
     }
 }

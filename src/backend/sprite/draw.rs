@@ -43,10 +43,12 @@ pub fn draw<T: SpriteInstance>(
     };
     pass.set_bind_group(2, &texture_bind_group, &[]);
     
+    crate::backend::metrics::batch();
     for range in cache::chunk_ranges(batch.range.clone()) {
         let instance_count = range.end - range.start;
         let instance_buffer_group = cache::prepare(instances, range);
         pass.set_bind_group(0, &instance_buffer_group, &[]);
+        crate::backend::metrics::draw();
         pass.draw_indexed(batch.indices.clone(), 0, 0..instance_count);
     }
 }

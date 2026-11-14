@@ -3,6 +3,7 @@ pub mod binding_set;
 pub mod buffer;
 pub mod context;
 pub mod frame_data;
+pub mod metrics;
 pub mod pass;
 pub mod pipeline;
 pub mod renderer;

@@ -32,6 +32,7 @@ impl InstanceSlot {
         let capacity = required.next_power_of_two();
         let buffer = buffer::storage::<RenderInstance>(capacity as u64)
             .expect("Impossible d'allouer le buffer d'instances de rendu");
+        crate::backend::metrics::allocation();
         let (_, group) = crate::bind_group! {
             wgpu::ShaderStages::VERTEX => buffer,
         };
@@ -97,6 +98,7 @@ pub(in crate::backend) fn prepare_render_instances(
 
     cache.staging.clear();
     cache.staging.extend(instances);
+    crate::backend::metrics::upload((cache.staging.len() * size_of::<RenderInstance>()) as u64);
     let slot = &cache.slots[index];
     buffer::write_buffer(
         &slot.buffer,
@@ -114,6 +116,16 @@ pub(crate) fn submitted() {
         // Called after queue.submit, so subsequent writes follow the previous draws.
         cache.lock().unwrap().next = 0;
     }
+}
+
+/// Logical GPU allocations retained by the instance cache, excluding arena page slack.
+pub(crate) fn memory_stats() -> (usize, u64) {
+    CACHE.get().map_or((0, 0), |cache| {
+        let cache = cache.lock().unwrap();
+        (cache.slots.len(), cache.slots.iter().map(|slot| {
+            (slot.capacity * size_of::<RenderInstance>()) as u64
+        }).sum())
+    })
 }
 
 #[cfg(test)]

@@ -144,11 +144,19 @@ impl<'a> Frame<'a> {
         draw(&mut pass);
     }
 
-    pub fn finish(self) {
-        context::queue().submit([self.encoder.finish()]);
+    pub fn finish(self, measure_gpu_wait: bool) -> Option<std::time::Duration> {
+        let submission = context::queue().submit([self.encoder.finish()]);
+        let gpu_wait = measure_gpu_wait.then(|| {
+            let start = std::time::Instant::now();
+            context::device().poll(wgpu::PollType::Wait {
+                submission_index: Some(submission),
+                timeout: Some(std::time::Duration::from_secs(10)),
+            }).map(|_| start.elapsed())
+        }).and_then(Result::ok);
         super::instances::submitted();
         super::text::submitted();
         self.window.pre_present_notify();
         context::queue().present(self.texture_surface);
+        gpu_wait
     }
 }

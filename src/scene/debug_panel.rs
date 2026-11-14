@@ -1,32 +1,53 @@
-use super::resources::{CircleMesh, Fps, FrameTimings, RectMesh, ScenePipeline, SceneRendering, TriangleMesh};
+use super::resources::{
+    CircleMesh, Fps, FrameTimings, RectMesh, ScenePipeline, SceneRendering, TriangleMesh,
+};
 use crate::core::Resources;
 use crate::debug::DebugManager;
 
-pub fn run(dm: &DebugManager, rs: &Resources) {
-    let fps = rs.read_resource::<Fps>();
+fn metrics_panel(dm: &DebugManager, rs: &Resources) {
+    dm.create_widget("Métriques")
+        .window()
+        .size([460.0, 540.0])
+        .show(|w| {
+            let fps = rs.read_resource::<Fps>();
+            let mut timings = rs.write_resource::<FrameTimings>();
+            w.metric("FPS lissés", &fps);
+            w.ui.separator();
+            for (label, timing) in [
+                ("Simulation particules", &timings.simulation),
+                ("Préparation particules", &timings.preparation),
+                ("Encodage des passes", &timings.render_encoding),
+                ("Acquisition de l'image", &timings.surface_acquire),
+            ] {
+                w.metric(label, format!("{:.3} ms", timing.average_ms));
+            }
+            w.ui.small("Temps CPU lissés (10 % de la nouvelle mesure).");
+            w.ui.checkbox(&mut timings.measure_gpu_wait, "Mesurer l'attente de fin GPU");
+            if timings.measure_gpu_wait {
+                w.metric("Attente CPU de fin GPU", format!("{:.3} ms", timings.gpu_wait.average_ms));
+            }
+            w.ui.small("Cette mesure synchronise CPU/GPU et peut réduire les FPS. Ce n'est pas la durée GPU par timestamps.");
+            w.ui.separator();
+            const MIB: f64 = 1024.0 * 1024.0;
+            w.metric("Instances GPU : capacité réservée", format!("{:.3} Mio", timings.instance_reserved_bytes as f64 / MIB));
+            w.metric("Instances envoyées / frame", timings.render.uploaded_bytes / size_of::<crate::backend::RenderInstance>() as u64);
+            w.metric("Uploads instances / frame", format!("{:.3} Mio", timings.render.uploaded_bytes as f64 / MIB));
+            w.metric("Allocations instances conservées", timings.instance_slots);
+            w.metric("Allocations créées / frame", timings.render.instance_allocations);
+            w.metric("Batches avant découpage / frame", timings.render.batches);
+            w.metric("Draw calls / frame", timings.render.draw_calls);
+            w.ui.small("Compteurs de la frame précédente. Draw calls : géométrie et effets, hors texte et egui.");
+            w.ui.small("Mémoire : allocations GPU du cache d'instances, hors espaces libres des pages et données CPU.");
+        });
+}
 
-    dm.create_widget("Debug Panel")
+pub fn run(dm: &DebugManager, rs: &Resources) {
+    metrics_panel(dm, rs);
+
+    dm.create_widget("Contrôles")
         .window()
         .size([380.0, 560.0])
         .show(|w| {
-            w.metric("FPS", &fps);
-            w.ui.separator();
-
-            w.create_widget("Temps CPU")
-                .header(true)
-                .show(|w| {
-                    let timings = rs.read_resource::<FrameTimings>();
-                    for (label, timing) in [
-                        ("Simulation particules", &timings.simulation),
-                        ("Préparation particules", &timings.preparation),
-                        ("Encodage des passes", &timings.render_encoding),
-                    ] {
-                        w.metric(label, format!("{:.3} ms", timing.average_ms));
-                    }
-                    w.ui.small("Moyenne lissée : 10 % de la nouvelle mesure.");
-                    w.ui.small("Temps CPU uniquement, hors exécution GPU et attente de présentation.");
-                });
-
             w.create_widget("Rendu de la scène")
                 .header(true)
                 .show(|w| {
