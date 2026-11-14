@@ -1,10 +1,10 @@
+use crate::api::scene::{RenderData, RenderDataId};
 use super::*;
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding},
     context,
-    frame_data::FrameData,
-    instances::{Instance, InstanceId},
+    instances::Instance,
     pipeline::{self, compute},
     target::{self, TargetSize},
 };
@@ -16,9 +16,9 @@ crate::define_pipeline_context!(Readback);
 crate::define_compute_pipeline_context!(CopyTarget);
 
 crate::define_render_operation! {
-    Record { trace: InstanceId<Step>, value: u32 }
+    Record { trace: RenderDataId<Vec<Step>>, value: u32 }
     execute(this, _pass, frame) {
-        frame.instances.get_mut(&this.trace).ok_or(PassError::MissingInstances)?.push(Step(this.value));
+        frame.get_mut(this.trace).ok_or(PassError::MissingInstances)?.push(Step(this.value));
         Ok(())
     }
 }
@@ -27,7 +27,7 @@ crate::define_compute_operation! {
     CopyTarget {
         pipeline: compute::ComputePipelineId<CopyTargetComputePipelineContext>,
         bindings: binding_set::TextureBindingSetId,
-        trace: InstanceId<Step>,
+        trace: RenderDataId<Vec<Step>>,
     }
     execute(this, pass, frame) {
         let context = compute::get(this.pipeline).ok_or(PassError::MissingPipeline)?;
@@ -35,7 +35,7 @@ crate::define_compute_operation! {
         let group = binding_set::group(this.bindings)?;
         pass.set_bind_group(0, &group, &[]);
         pass.dispatch_workgroups(8, 8, 1);
-        frame.instances.get_mut(&this.trace).ok_or(PassError::MissingInstances)?.push(Step(3));
+        frame.get_mut(this.trace).ok_or(PassError::MissingInstances)?.push(Step(3));
         Ok(())
     }
 }
@@ -44,7 +44,7 @@ crate::define_render_operation! {
     Readback {
         pipeline: pipeline::PipelineId<ReadbackPipelineContext>,
         bindings: binding_set::TextureBindingSetId,
-        trace: InstanceId<Step>,
+        trace: RenderDataId<Vec<Step>>,
     }
     execute(this, pass, frame) {
         let context = pipeline::get(this.pipeline).ok_or(PassError::MissingPipeline)?;
@@ -52,7 +52,7 @@ crate::define_render_operation! {
         let group = binding_set::group(this.bindings)?;
         pass.set_bind_group(0, &group, &[]);
         pass.draw(0..3, 0..1);
-        frame.instances.get_mut(&this.trace).ok_or(PassError::MissingInstances)?.push(Step(4));
+        frame.get_mut(this.trace).ok_or(PassError::MissingInstances)?.push(Step(4));
         Ok(())
     }
 }
@@ -226,8 +226,8 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         index_buffer: None,
     });
     let read_pipeline = pipeline::register(read_context);
-    let mut frame = FrameData::new();
-    let trace = frame.instances.insert(Vec::<Step>::new().into());
+    let mut frame = RenderData::new();
+    let trace = frame.insert(Vec::<Step>::new());
     let mut passes = vec![
         render(
             source,
@@ -265,7 +265,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     });
 
     for expected in [[255, 0, 0, 255], [0, 255, 0, 255]] {
-        frame.instances.get_mut(&trace).unwrap().clear();
+        frame.get_mut(trace).unwrap().clear();
         let mut encoder = device.create_command_encoder(&Default::default());
         execute(
             &mut passes,
@@ -302,8 +302,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         }
         assert_eq!(
             frame
-                .instances
-                .get(&trace)
+                .get(trace)
                 .unwrap()
                 .iter()
                 .map(|step| step.0)
@@ -325,9 +324,9 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     }
 
     // A failed operation stops the sequence and the following passes.
-    let missing = frame.instances.insert(Vec::<Step>::new().into());
-    frame.instances.remove(&missing).unwrap();
-    frame.instances.get_mut(&trace).unwrap().clear();
+    let missing = frame.insert(Vec::<Step>::new());
+    frame.remove(missing).unwrap();
+    frame.get_mut(trace).unwrap().clear();
     let mut failing = vec![
         render(
             PassTarget::Surface,
@@ -359,8 +358,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     ));
     assert_eq!(
         frame
-            .instances
-            .get(&trace)
+            .get(trace)
             .unwrap()
             .iter()
             .map(|step| step.0)
@@ -419,7 +417,7 @@ fn depth_ordering_and_resize() {
         fn execute(
             &mut self,
             pass: &mut wgpu::RenderPass<'_>,
-            _: &mut FrameData,
+            _: &mut crate::api::scene::RenderData,
         ) -> Result<(), PassError> {
             pass.set_pipeline(&self.0);
             // Near green first, far red second: depth must keep green visible.
@@ -483,7 +481,7 @@ fn depth_ordering_and_resize() {
             &mut passes,
             &mut encoder,
             color_target.texture().view(),
-            &mut FrameData::new(),
+            &mut RenderData::new(),
         )
         .unwrap();
         encoder.copy_texture_to_buffer(

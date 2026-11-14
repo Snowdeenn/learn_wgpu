@@ -1,5 +1,4 @@
 use super::resources::*;
-use std::time::Instant;
 use crate::effects::{
     blur::{BlurHorizontalOperation, BlurVerticalOperation},
     composite::CompositionOperation,
@@ -11,10 +10,9 @@ use crate::{
     core::Resources,
     particle,
 };
+use std::time::Instant;
 
-use super::instance::Dummy;
 use crate::backend::{
-    instances::InstanceId,
     pass::{self, PassError, PassTarget},
     pipeline,
     renderer::Frame,
@@ -22,9 +20,9 @@ use crate::backend::{
 
 crate::define_render_operation! {
     Scene {
-        mode: ScenePipeline,
+        mode: crate::api::scene::RenderDataId<ScenePipeline>,
         pipelines: ScenePipelines,
-        instances: InstanceId<Dummy>,
+        instances: crate::api::scene::RenderDataId<InstanceData>,
     }
 
     execute(this, pass, frame) {
@@ -37,11 +35,12 @@ crate::define_render_operation! {
         let texture_array = pipeline::get(this.pipelines.texture_array)
             .ok_or(PassError::MissingPipeline)?;
 
-        let instances = frame.instances
-            .get_mut(&this.instances)
+        let mode = *frame.get(this.mode).ok_or(PassError::MissingData)?;
+        let instances = frame
+            .get_mut(this.instances)
             .ok_or(PassError::MissingInstances)?;
 
-        match this.mode {
+        match mode {
             ScenePipeline::Mesh => {
                 backend::bind(&*mesh, pass);
                 shape::draw_all(&mut instances.data, pass);
@@ -55,9 +54,6 @@ crate::define_render_operation! {
                 );
             }
         }
-
-
-
 
         Ok(())
     }
@@ -114,7 +110,7 @@ pub fn prepare_text(
     let camera = resources.read_resource::<Camera2D>();
     let rendering = resources.read_resource::<SceneRendering>();
     text::prepare(
-        &rendering.data.text,
+        rendering.data.get(rendering.texts).expect("Textes de la scène introuvables"),
         &text::TextView {
             resolution,
             scale_factor,
@@ -128,89 +124,29 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
     let start = Instant::now();
     particle::prepare_registered_effects();
     let elapsed = start.elapsed();
-    resources.write_resource::<FrameTimings>().preparation.record(elapsed);
+    resources
+        .write_resource::<FrameTimings>()
+        .preparation
+        .record(elapsed);
 
     let mode = *resources.read_resource::<ScenePipeline>();
-    let pipelines = *resources.read_resource::<ScenePipelines>();
     let mut rendering = resources.write_resource::<SceneRendering>();
+    let mode_id = rendering.mode;
+    *rendering.data.get_mut(mode_id).ok_or(PassError::MissingData)? = mode;
 
     rendering.blur.prepare();
 
-    let operation = SceneOperation {
-        mode,
-        pipelines,
-        instances: rendering.instances,
-    };
+    let SceneRendering { renderer, data, .. } = &mut *rendering;
 
-    let present_operation = PresentOperation {
-        pipeline: rendering.present.pipeline,
-        source: rendering.present.source,
-    };
-
-    let particle_op = ParticleOperation {
-        pipelines: rendering.particle_pipelines,
-    };
-
-    let blur_vertical = BlurVerticalOperation {
-        pipeline: rendering.blur.pipeline,
-        source: rendering.blur.source_a,
-        direction: rendering.blur.vertical_group.clone(),
-    };
-
-    let blur_horizontal = BlurHorizontalOperation {
-        pipeline: rendering.blur.pipeline,
-        source: rendering.blur.source_b,
-        direction: rendering.blur.horizontal_group.clone(),
-    };
-
-    let composition = CompositionOperation {
-        pipeline: rendering.composition.pipeline,
-        source: rendering.composition.source,
-    };
-
-    let target = rendering.target;
-    let depth_target = rendering.depth.id();
-    let blur_target_a = rendering.blur.target_a;
-    let blur_target_b = rendering.blur.target_b;
-
-    rendering.passes.clear();
-    rendering.passes.push(pass::render(
-        PassTarget::Offscreen(target),
-        wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-        operation,
-    ).with_depth(depth_target));
-    rendering.passes.push(pass::render(PassTarget::Offscreen(target), wgpu::LoadOp::Load, SceneTextOperation {}));
-    rendering.passes.push(pass::render(
-        PassTarget::Offscreen(blur_target_a),
-        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-        particle_op,
-    ));
-    rendering.passes.push(pass::render(
-        PassTarget::Offscreen(blur_target_b),
-        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-        blur_vertical,
-    ));
-    rendering.passes.push(pass::render(
-        PassTarget::Offscreen(blur_target_a),
-        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-        blur_horizontal,
-    ));
-    rendering.passes.push(pass::render(
-        PassTarget::Offscreen(target),
-        wgpu::LoadOp::Load,
-        composition,
-    ));
-    rendering.passes.push(pass::render(
-        PassTarget::Surface,
-        wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-        present_operation,
-    ));
-
-    let SceneRendering { passes, data, .. } = &mut *rendering;
     let start = Instant::now();
-    let result = frame.execute(passes, data);
+    let result = renderer.execute(frame, data);
     let elapsed = start.elapsed();
-    resources.write_resource::<FrameTimings>().render_encoding.record(elapsed);
+
+    resources
+        .write_resource::<FrameTimings>()
+        .render_encoding
+        .record(elapsed);
+
     result
 }
 

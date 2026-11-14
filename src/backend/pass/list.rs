@@ -1,4 +1,4 @@
-use crate::backend::{frame_data::FrameData, target};
+use crate::{api::scene::RenderData, backend::target};
 
 use super::{PassContext, PassError, PassTarget, RenderPassBuilder};
 
@@ -11,7 +11,7 @@ pub fn execute(
     passes: &mut [PassContext],
     encoder: &mut wgpu::CommandEncoder,
     surface_view: &wgpu::TextureView,
-    frame: &mut FrameData,
+    frame: &mut RenderData,
 ) -> Result<(), PassError> {
     for context in passes {
         match context {

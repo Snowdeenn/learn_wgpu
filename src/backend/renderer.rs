@@ -115,7 +115,7 @@ impl<'a> Frame<'a> {
     pub fn execute(
         &mut self,
         passes: &mut [super::pass::PassContext],
-        data: &mut super::frame_data::FrameData,
+        data: &mut crate::api::scene::RenderData,
     ) -> Result<(), super::pass::PassError> {
         super::pass::execute(passes, &mut self.encoder, &self.view, data)
     }

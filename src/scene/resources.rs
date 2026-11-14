@@ -1,7 +1,6 @@
 use super::instance::Dummy;
 use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
-use crate::backend::frame_data::FrameData;
-use crate::backend::instances::InstanceId;
+use crate::api::scene::{RenderData, RenderDataId, SceneRenderer};
 use crate::backend::pass::PassList;
 use crate::backend::shape::MeshResource;
 use crate::geometry::mesh::Vertex;
@@ -78,9 +77,11 @@ crate::define_pipeline_context!(TextureArray);
 pub struct SceneRendering {
     pub depth: crate::backend::depth::DepthTarget,
     pub particle_pipelines: ScenePipelines,
-    pub data: FrameData,
-    pub instances: InstanceId<Dummy>,
-    pub passes: PassList,
+    pub data: RenderData,
+    pub mode: RenderDataId<ScenePipeline>,
+    pub instances: RenderDataId<InstanceData>,
+    pub texts: RenderDataId<Vec<backend::text::Text>>,
+    pub renderer: SceneRenderer,
     pub target: RenderTargetId,
     pub blur: crate::effects::blur::BlurEffect,
     pub present: crate::effects::present::PresentEffect,
@@ -90,8 +91,7 @@ pub struct SceneRendering {
 impl SceneRendering {
     pub fn instances_mut(&mut self) -> &mut InstanceData {
         self.data
-            .instances
-            .get_mut(&self.instances)
+            .get_mut(self.instances)
             .expect("Instances de la scène introuvables")
     }
 }

@@ -15,7 +15,7 @@ macro_rules! define_render_operation {
                 fn execute(
                     &mut self,
                     $pass: &mut wgpu::RenderPass<'_>,
-                    $frame: &mut $crate::backend::frame_data::FrameData,
+                    $frame: &mut $crate::api::scene::RenderData,
                 ) -> Result<(), $crate::backend::pass::PassError> {
                     let $this = self;
                     $body
@@ -40,7 +40,7 @@ macro_rules! define_compute_operation {
                 fn execute(
                     &mut self,
                     $pass: &mut wgpu::ComputePass<'_>,
-                    $frame: &mut $crate::backend::frame_data::FrameData,
+                    $frame: &mut $crate::api::scene::RenderData,
                 ) -> Result<(), $crate::backend::pass::PassError> {
                     let $this = self;
                     $body

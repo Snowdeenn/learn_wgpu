@@ -9,6 +9,7 @@ mod geometry;
 mod effects;
 mod scene;
 mod particle;
+mod api;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();

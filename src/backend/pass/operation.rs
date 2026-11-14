@@ -1,4 +1,4 @@
-use crate::backend::frame_data::FrameData;
+use crate::api::scene::RenderData;
 
 use super::PassError;
 
@@ -6,7 +6,7 @@ pub trait RenderOperation {
     fn execute(
         &mut self,
         pass: &mut wgpu::RenderPass<'_>,
-        frame: &mut FrameData,
+        frame: &mut RenderData,
     ) -> Result<(), PassError>;
 }
 
@@ -14,7 +14,7 @@ pub trait ComputeOperation {
     fn execute(
         &mut self,
         pass: &mut wgpu::ComputePass<'_>,
-        frame: &mut FrameData,
+        frame: &mut RenderData,
     ) -> Result<(), PassError>;
 }
 
@@ -41,7 +41,7 @@ impl RenderOperation for RenderSequence {
     fn execute(
         &mut self,
         pass: &mut wgpu::RenderPass<'_>,
-        frame: &mut FrameData,
+        frame: &mut RenderData,
     ) -> Result<(), PassError> {
         for operation in &mut self.operations {
             operation.execute(pass, frame)?;

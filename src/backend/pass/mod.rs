@@ -55,6 +55,7 @@ pub enum PassError {
     InvalidColorTarget(RenderTargetId),
     MissingPipeline,
     MissingInstances,
+    MissingData,
     BindingSet(BindingSetError),
     Text(TextError),
 }
@@ -69,6 +70,7 @@ impl std::fmt::Display for PassError {
             }
             Self::MissingPipeline => f.write_str("Unknown operation pipeline"),
             Self::MissingInstances => f.write_str("Unknown operation instances"),
+            Self::MissingData => f.write_str("Missing operation data"),
             Self::BindingSet(error) => error.fmt(f),
             Self::Text(error) => error.fmt(f),
         }

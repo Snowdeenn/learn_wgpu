@@ -1,9 +1,17 @@
 use std::{sync::Arc, vec};
 
+use crate::effects::{
+    blur::{BlurHorizontalOperation, BlurVerticalOperation},
+    composite::CompositionOperation,
+    present::PresentOperation,
+};
+use crate::scene::render::{ParticleOperation, SceneOperation, SceneTextOperation};
+
 use super::{instance::Dummy, resources::*};
+use crate::api::scene::SceneRenderer;
 use crate::backend::target::{self, RenderTargetDescriptor, TargetSize};
 use crate::{
-    backend::{self, buffer, frame_data::FrameData},
+    backend::{self, buffer, pass, pass::PassTarget},
     camera::Camera2D,
     core::Resources,
     geometry::{mesh::Vertex, primitives::*},
@@ -323,8 +331,8 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
 
     resources.insert(CamBuffer(cam_buff));
     resources.insert(cam);
-    let mut data = FrameData::new();
-    let instances = data.instances.insert(InstanceData {
+    let mut data = crate::api::scene::RenderData::new();
+    let instances = data.insert(InstanceData {
         data: instance_data,
     });
 
@@ -357,7 +365,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     let mut hud_text = backend::text::Text::new(hud_label, backend::text::TextSpace::Screen);
     hud_text.position = [20.0, 20.0];
 
-    data.text = vec![world_text, hud_text];
+    let texts = data.insert(vec![world_text, hud_text]);
 
     let target = target::register(RenderTargetDescriptor {
         label: "Scene",
@@ -374,12 +382,91 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
     let present = crate::effects::present::PresentEffect::new(target, format);
     let composition = crate::effects::composite::CompositeEffect::new(blur.target_a, format);
 
+    let mode = data.insert(*resources.read_resource::<ScenePipeline>());
+    let pipelines = *resources.read_resource::<ScenePipelines>();
+
+    let operation = SceneOperation {
+        mode,
+        pipelines,
+        instances: instances,
+    };
+
+    let present_operation = PresentOperation {
+        pipeline: present.pipeline,
+        source: present.source,
+    };
+
+    let particle_op = ParticleOperation {
+        pipelines: particle_pipelines,
+    };
+
+    let blur_vertical = BlurVerticalOperation {
+        pipeline: blur.pipeline,
+        source: blur.source_a,
+        direction: blur.vertical_group.clone(),
+    };
+
+    let blur_horizontal = BlurHorizontalOperation {
+        pipeline: blur.pipeline,
+        source: blur.source_b,
+        direction: blur.horizontal_group.clone(),
+    };
+
+    let composition_op = CompositionOperation {
+        pipeline: composition.pipeline,
+        source: composition.source,
+    };
+
+    let depth = backend::depth::DepthTarget::new(resolution);
+
+    let renderer = SceneRenderer::new()
+        .add_pass(
+            pass::render(
+                PassTarget::Offscreen(target),
+                wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                operation,
+            )
+            .with_depth(depth.id()),
+        )
+        .add_pass(pass::render(
+            PassTarget::Offscreen(target),
+            wgpu::LoadOp::Load,
+            SceneTextOperation {},
+        ))
+        .add_pass(pass::render(
+            PassTarget::Offscreen(blur.target_a),
+            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            particle_op,
+        ))
+        .add_pass(pass::render(
+            PassTarget::Offscreen(blur.target_b),
+            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            blur_vertical,
+        ))
+        .add_pass(pass::render(
+            PassTarget::Offscreen(blur.target_a),
+            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            blur_horizontal,
+        ))
+        .add_pass(pass::render(
+            PassTarget::Offscreen(target),
+            wgpu::LoadOp::Load,
+            composition_op,
+        ))
+        .add_pass(pass::render(
+            PassTarget::Surface,
+            wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+            present_operation,
+        ));
+
     resources.insert(SceneRendering {
-        depth: backend::depth::DepthTarget::new(resolution),
+        depth,
         particle_pipelines,
         data,
+        mode,
         instances,
-        passes: Vec::new(),
+        texts,
+        renderer,
         target,
         blur,
         present,
