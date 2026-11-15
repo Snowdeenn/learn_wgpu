@@ -136,11 +136,12 @@ impl ApplicationHandler for App {
                             return;
                         }
 
-                        debug.flush_into(window, &mut frame.encoder, &frame.view, size_in_pixels);
+                        let (encoder, view) = frame.render_parts();
+                        debug.flush_into(window, encoder, view, size_in_pixels);
 
                         let measure_wait = self.resources.read_resource::<FrameTimings>().measure_gpu_wait;
                         let wait = frame.finish(measure_wait);
-                        let (slots, reserved) = crate::backend::instances::cache::memory_stats();
+                        let (slots, reserved) = crate::backend::instances::memory_stats();
                         let mut timings = self.resources.write_resource::<FrameTimings>();
                         timings.render = crate::backend::metrics::snapshot();
                         timings.instance_slots = slots;

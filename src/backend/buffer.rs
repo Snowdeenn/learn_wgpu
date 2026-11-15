@@ -152,7 +152,7 @@ impl<T, K: BufferKind> Buffer<T, K> {
 }
 
 impl<T, K: BindableBufferKind> Buffer<T, K> {
-    pub(crate) fn resolve_binding(&self) -> impl Bindable + use<T, K> {
+    pub fn resolve_binding(&self) -> impl Bindable + use<T, K> {
         let arena = context::buffer().read().unwrap();
         let allocation = arena.allocations.get(self.alloc_id).unwrap();
         let page = &arena.pages[allocation.page];

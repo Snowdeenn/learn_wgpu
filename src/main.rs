@@ -1,15 +1,11 @@
 use winit::event_loop::{ControlFlow, EventLoop};
 
 mod app;
-mod backend;
-mod camera;
-mod core;
+use velum::{api, backend, camera, core, effects, geometry, particle};
+pub use velum::{create_marker, define_render_operation, define_compute_operation};
+pub use velum::{define_pipeline_context, unique_resource, bind_group, pipeline_context};
 mod debug;
-mod geometry;
-mod effects;
 mod scene;
-mod particle;
-mod api;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();

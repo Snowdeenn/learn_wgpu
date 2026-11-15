@@ -31,7 +31,7 @@ impl App {
 
             let rendering = self.resources.read_resource::<SceneRendering>();
             let mut velum = self.resources.write_resource::<crate::api::Velum>();
-            let scene = velum.get_mut(rendering.scene).unwrap();
+            let scene = velum.scene_mut(rendering.scene).unwrap();
             let instances = scene.data.get_mut(rendering.instances).unwrap();
 
             backend::sprite::run_animated(instances, dt);

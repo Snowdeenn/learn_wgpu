@@ -120,9 +120,14 @@ impl<'a> Frame<'a> {
         super::pass::execute(passes, &mut self.encoder, &self.view, data)
     }
 
-    pub(crate) fn size_in_pixels(&self) -> [u32; 2] {
+    pub fn size_in_pixels(&self) -> [u32; 2] {
         let size = self.texture_surface.texture.size();
         [size.width, size.height]
+    }
+
+    /// Accesses the encoder and output view for custom rendering integrations.
+    pub fn render_parts(&mut self) -> (&mut wgpu::CommandEncoder, &wgpu::TextureView) {
+        (&mut self.encoder, &self.view)
     }
 
     #[deprecated(note = "Utiliser Frame::execute à la place")]

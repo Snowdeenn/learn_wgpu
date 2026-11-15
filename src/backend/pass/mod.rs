@@ -56,6 +56,7 @@ pub enum PassError {
     MissingPipeline,
     MissingInstances,
     MissingData,
+    Data(crate::api::scene::RenderDataError),
     BindingSet(BindingSetError),
     Text(TextError),
 }
@@ -71,15 +72,21 @@ impl std::fmt::Display for PassError {
             Self::MissingPipeline => f.write_str("Unknown operation pipeline"),
             Self::MissingInstances => f.write_str("Unknown operation instances"),
             Self::MissingData => f.write_str("Missing operation data"),
+            Self::Data(error) => error.fmt(f),
             Self::BindingSet(error) => error.fmt(f),
             Self::Text(error) => error.fmt(f),
         }
     }
 }
 
+impl From<crate::api::scene::RenderDataError> for PassError {
+    fn from(error: crate::api::scene::RenderDataError) -> Self { Self::Data(error) }
+}
+
 impl std::error::Error for PassError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Data(error) => Some(error),
             Self::BindingSet(error) => Some(error),
             Self::Text(error) => Some(error),
             _ => None,

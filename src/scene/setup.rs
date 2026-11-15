@@ -9,7 +9,7 @@ use crate::scene::render::{ParticleOperation, SceneOperation, SceneTextOperation
 
 use super::{instance::Dummy, resources::*};
 use crate::api::Velum;
-use crate::api::scene::{Scene, SceneId, SceneRenderer};
+use crate::api::scene::Scene;
 use crate::backend::target::{self, RenderTargetDescriptor, TargetSize};
 use crate::{
     backend::{self, buffer, pass, pass::PassTarget},
@@ -426,7 +426,7 @@ pub fn initialize(
 
     let depth = backend::depth::DepthTarget::new(resolution);
 
-    let renderer = SceneRenderer::new()
+    let renderer = crate::api::scene::renderer()
         .add_pass(
             pass::render(
                 PassTarget::Offscreen(target),
@@ -466,9 +466,12 @@ pub fn initialize(
             present_operation,
         ));
 
-    let scene = Scene { renderer, data };
+    let scene = Scene {
+        renderer: renderer.build(),
+        data,
+    };
     let scene = velum.add_scene(scene);
-    velum.activate(scene);
+    velum.activate(scene).expect("Scene must be registered");
 
     resources.insert(SceneRendering {
         scene,

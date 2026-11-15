@@ -1,9 +1,10 @@
 use new_collection::Arena;
 
-use super::scene::{SceneId, Scene};
 use super::SceneError;
+use super::scene::{Scene, SceneId};
 use crate::backend::renderer::Frame;
 
+#[derive(Default)]
 pub struct Velum {
     scenes: Arena<Scene>,
     active: Option<SceneId>,
@@ -23,22 +24,35 @@ impl Velum {
     }
 
     #[inline]
-    pub fn activate(&mut self, scene: SceneId) {
-        self.active = Some(scene)
+    pub fn activate(&mut self, scene: SceneId) -> Result<(), SceneError> {
+        self.scenes
+            .get(scene)
+            .ok_or(SceneError::MissingScene(scene))?;
+        self.active = Some(scene);
+        Ok(())
+    }
+
+    pub fn active_scene(&self) -> Option<SceneId> {
+        self.active
+    }
+
+    pub fn deactivate(&mut self) {
+        self.active = None;
     }
 
     #[inline]
-    pub fn get_mut(&mut self, scene: SceneId) -> Option<&mut Scene> {
+    pub fn scene_mut(&mut self, scene: SceneId) -> Option<&mut Scene> {
         self.scenes.get_mut(scene)
     }
 
     #[inline]
-    pub fn get(&self, scene: SceneId) -> Option<&Scene> {
+    pub fn scene(&self, scene: SceneId) -> Option<&Scene> {
         self.scenes.get(scene)
     }
 
     #[inline]
-    pub fn remove(&mut self, scene: SceneId) -> Option<Scene> {
+    pub fn remove_scene(&mut self, scene: SceneId) -> Option<Scene> {
+        self.scenes.get(scene)?;
         if let Some(active) = self.active {
             if active == scene {
                 self.active = None;
@@ -52,8 +66,9 @@ impl Velum {
             return Err(SceneError::NoActiveScene);
         };
 
-        let Scene { renderer, data } =
-            self.get_mut(scene).ok_or(SceneError::MissingScene(scene))?;
+        let Scene { renderer, data } = self
+            .scene_mut(scene)
+            .ok_or(SceneError::MissingScene(scene))?;
 
         if let Err(e) = renderer.execute(frame, data) {
             return Err(SceneError::Pass(e));

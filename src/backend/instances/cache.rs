@@ -119,7 +119,7 @@ pub(crate) fn submitted() {
 }
 
 /// Logical GPU allocations retained by the instance cache, excluding arena page slack.
-pub(crate) fn memory_stats() -> (usize, u64) {
+pub fn memory_stats() -> (usize, u64) {
     CACHE.get().map_or((0, 0), |cache| {
         let cache = cache.lock().unwrap();
         (cache.slots.len(), cache.slots.iter().map(|slot| {

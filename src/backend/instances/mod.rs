@@ -1,6 +1,7 @@
 pub(crate) mod cache;
 
 pub(crate) use cache::submitted;
+pub use cache::memory_stats;
 
 use new_collection::{Arena, Id};
 use std::{

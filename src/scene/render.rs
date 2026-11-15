@@ -29,10 +29,8 @@ crate::define_render_operation! {
         let texture_array = pipeline::get(this.pipelines.texture_array)
             .ok_or(PassError::MissingPipeline)?;
 
-        let mode = *frame.get(this.mode).ok_or(PassError::MissingData)?;
-        let instances = frame
-            .get_mut(this.instances)
-            .ok_or(PassError::MissingInstances)?;
+        let mode = *frame.require(this.mode)?;
+        let instances = frame.require_mut(this.instances)?;
 
         match mode {
             ScenePipeline::Mesh => {
@@ -104,7 +102,7 @@ pub fn prepare_text(
     let camera = resources.read_resource::<Camera2D>();
     let rendering = resources.read_resource::<SceneRendering>();
     let velum = resources.read_resource::<Velum>();
-    let Scene { data, .. } = &*velum.get(rendering.scene).unwrap();
+    let Scene { data, .. } = &*velum.scene(rendering.scene).unwrap();
     text::prepare(
         data.get(rendering.texts)
             .expect("Textes de la scène introuvables"),
@@ -132,7 +130,7 @@ pub fn render(
     let mode = *resources.read_resource::<ScenePipeline>();
     let mut rendering = resources.write_resource::<SceneRendering>();
     let mut velum = resources.write_resource::<Velum>();
-    let Scene { data, .. } = &mut *velum.get_mut(rendering.scene).unwrap();
+    let Scene { data, .. } = &mut *velum.scene_mut(rendering.scene).unwrap();
     let mode_id = rendering.mode;
     *data.get_mut(mode_id).unwrap() = mode;
 

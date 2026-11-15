@@ -77,7 +77,7 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                         if let Some(mesh) = chosen {
                             let mut velum = rs.write_resource::<Velum>();
                             let rend = rs.read_resource::<SceneRendering>();
-                            let Scene {data, ..} = &mut *velum.get_mut(rend.scene).unwrap();
+                            let Scene {data, ..} = &mut *velum.scene_mut(rend.scene).unwrap();
                             let instances = data.get_mut(rend.instances).unwrap();
 
                             for instance in instances.iter_mut() {
@@ -133,7 +133,7 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                 .show(|w| {
                     let mut velum = rs.write_resource::<Velum>();
                     let rend = rs.read_resource::<SceneRendering>();
-                    let Scene {data, ..} = &mut *velum.get_mut(rend.scene).unwrap();
+                    let Scene {data, ..} = &mut *velum.scene_mut(rend.scene).unwrap();
                     let instances = data.get_mut(rend.instances).unwrap();
                     egui::ScrollArea::vertical()
                         .max_height(280.0)

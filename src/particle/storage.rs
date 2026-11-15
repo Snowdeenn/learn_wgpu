@@ -33,7 +33,7 @@ pub fn prepare_registered_effects() {
     }
 }
 
-pub(crate) fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOutput)) {
+pub fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOutput)) {
     let mut effects = effect_storage().write().unwrap();
     for effect in effects.iter_mut() {
         visit(effect.render_output_mut());
