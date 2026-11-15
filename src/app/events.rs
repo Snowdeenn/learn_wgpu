@@ -1,9 +1,6 @@
 use super::App;
 use crate::{
-    backend::renderer::Renderer,
-    camera::Camera2DController,
-    debug::DebugManager,
-    scene::{self, resources::{Fps, FrameTimings}},
+    api::Velum, backend::renderer::Renderer, camera::Camera2DController, debug::DebugManager, scene::{self, resources::{Fps, FrameTimings}},
 };
 use std::sync::Arc;
 use winit::{
@@ -31,7 +28,10 @@ impl ApplicationHandler for App {
         );
         let renderer = Renderer::new(window.clone());
         let debug = DebugManager::init(&window, renderer.conf.format);
+        let mut velum = Velum::new();
+
         scene::setup::initialize(
+            &mut velum,
             &mut self.resources,
             renderer.conf.format,
             [renderer.conf.width, renderer.conf.height],
@@ -41,6 +41,7 @@ impl ApplicationHandler for App {
         self.debug = Some(debug);
         self.cam_controller = Some(Camera2DController::new(250.0));
 
+        self.resources.insert(velum);
         self.resources.insert(Fps(0.0));
         self.resources.insert(FrameTimings::default());
     }

@@ -1,10 +1,6 @@
 use super::resources::*;
-use crate::effects::{
-    blur::{BlurHorizontalOperation, BlurVerticalOperation},
-    composite::CompositionOperation,
-    present::PresentOperation,
-};
 use crate::{
+    api::{SceneError, scene::Scene},
     backend::{self, Sprite, SpriteInstance, shape, text},
     camera::Camera2D,
     core::Resources,
@@ -12,11 +8,9 @@ use crate::{
 };
 use std::time::Instant;
 
-use crate::backend::{
-    pass::{self, PassError, PassTarget},
-    pipeline,
-    renderer::Frame,
-};
+use crate::backend::{pass::PassError, pipeline, renderer::Frame};
+
+use crate::api::Velum;
 
 crate::define_render_operation! {
     Scene {
@@ -109,8 +103,11 @@ pub fn prepare_text(
 ) -> Result<(), text::TextError> {
     let camera = resources.read_resource::<Camera2D>();
     let rendering = resources.read_resource::<SceneRendering>();
+    let velum = resources.read_resource::<Velum>();
+    let Scene { data, .. } = &*velum.get(rendering.scene).unwrap();
     text::prepare(
-        rendering.data.get(rendering.texts).expect("Textes de la scène introuvables"),
+        data.get(rendering.texts)
+            .expect("Textes de la scène introuvables"),
         &text::TextView {
             resolution,
             scale_factor,
@@ -119,7 +116,10 @@ pub fn prepare_text(
     )
 }
 
-pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassError> {
+pub fn render(
+    resources: &Resources,
+    frame: &mut Frame<'_>,
+) -> Result<(), SceneError> {
     // Prepare before encoding so the two timings do not overlap.
     let start = Instant::now();
     particle::prepare_registered_effects();
@@ -131,15 +131,15 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), PassEr
 
     let mode = *resources.read_resource::<ScenePipeline>();
     let mut rendering = resources.write_resource::<SceneRendering>();
+    let mut velum = resources.write_resource::<Velum>();
+    let Scene { data, .. } = &mut *velum.get_mut(rendering.scene).unwrap();
     let mode_id = rendering.mode;
-    *rendering.data.get_mut(mode_id).ok_or(PassError::MissingData)? = mode;
+    *data.get_mut(mode_id).unwrap() = mode;
 
     rendering.blur.prepare();
 
-    let SceneRendering { renderer, data, .. } = &mut *rendering;
-
     let start = Instant::now();
-    let result = renderer.execute(frame, data);
+    let result = velum.render(frame);
     let elapsed = start.elapsed();
 
     resources

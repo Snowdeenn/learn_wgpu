@@ -8,7 +8,8 @@ use crate::effects::{
 use crate::scene::render::{ParticleOperation, SceneOperation, SceneTextOperation};
 
 use super::{instance::Dummy, resources::*};
-use crate::api::scene::SceneRenderer;
+use crate::api::Velum;
+use crate::api::scene::{Scene, SceneId, SceneRenderer};
 use crate::backend::target::{self, RenderTargetDescriptor, TargetSize};
 use crate::{
     backend::{self, buffer, pass, pass::PassTarget},
@@ -25,7 +26,12 @@ use crate::{
     },
 };
 
-pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolution: [u32; 2]) {
+pub fn initialize(
+    velum: &mut Velum,
+    resources: &mut Resources,
+    format: wgpu::TextureFormat,
+    resolution: [u32; 2],
+) {
     let texture_shader =
         backend::load_shader(Some("Texture Shader"), "assets/shaders/texture.wgsl").unwrap();
     let mesh_shader =
@@ -331,6 +337,7 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
 
     resources.insert(CamBuffer(cam_buff));
     resources.insert(cam);
+
     let mut data = crate::api::scene::RenderData::new();
     let instances = data.insert(InstanceData {
         data: instance_data,
@@ -459,18 +466,16 @@ pub fn initialize(resources: &mut Resources, format: wgpu::TextureFormat, resolu
             present_operation,
         ));
 
+    let scene = Scene { renderer, data };
+    let scene = velum.add_scene(scene);
+    velum.activate(scene);
+
     resources.insert(SceneRendering {
-        depth,
-        particle_pipelines,
-        data,
+        scene,
         mode,
         instances,
         texts,
-        renderer,
-        target,
         blur,
-        present,
-        composition,
     });
 
     let bubble = backend::load_texture(

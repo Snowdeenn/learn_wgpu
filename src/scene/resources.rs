@@ -1,14 +1,12 @@
 use super::instance::Dummy;
 use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
-use crate::api::scene::{RenderData, RenderDataId, SceneRenderer};
-use crate::backend::pass::PassList;
+use crate::api::scene::{RenderDataId, SceneId};
 use crate::backend::shape::MeshResource;
 use crate::geometry::mesh::Vertex;
 use math::Mat4;
 use new_collection::Id;
 
 use crate::backend::pipeline::PipelineId;
-use crate::backend::target::RenderTargetId;
 use crate::backend;
 
 crate::unique_resource!(CamBuffer, Buffer<Mat4, Uniform>);
@@ -75,25 +73,11 @@ crate::define_pipeline_context!(Texture);
 crate::define_pipeline_context!(TextureArray);
 
 pub struct SceneRendering {
-    pub depth: crate::backend::depth::DepthTarget,
-    pub particle_pipelines: ScenePipelines,
-    pub data: RenderData,
+    pub scene: SceneId,
     pub mode: RenderDataId<ScenePipeline>,
     pub instances: RenderDataId<InstanceData>,
     pub texts: RenderDataId<Vec<backend::text::Text>>,
-    pub renderer: SceneRenderer,
-    pub target: RenderTargetId,
     pub blur: crate::effects::blur::BlurEffect,
-    pub present: crate::effects::present::PresentEffect,
-    pub composition: crate::effects::composite::CompositeEffect,
-}
-
-impl SceneRendering {
-    pub fn instances_mut(&mut self) -> &mut InstanceData {
-        self.data
-            .get_mut(self.instances)
-            .expect("Instances de la scène introuvables")
-    }
 }
 
 #[derive(Clone, Copy)]

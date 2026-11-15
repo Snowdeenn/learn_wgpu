@@ -2,10 +2,13 @@ use std::any::Any;
 
 use new_collection::{Arena, Id};
 
-use crate::backend::{
-    self,
-    pass::{PassContext, PassError, PassList},
-    renderer::Frame,
+use crate::{
+    api::SceneError,
+    backend::{
+        self,
+        pass::{PassContext, PassError, PassList},
+        renderer::Frame,
+    },
 };
 
 pub struct SceneRenderer {
@@ -71,3 +74,10 @@ impl RenderData {
         self.data.remove(id.raw)?.downcast().ok().map(|b| *b)
     }
 }
+
+pub struct Scene {
+    pub renderer: SceneRenderer,
+    pub data: RenderData,
+}
+
+pub type SceneId = Id<Scene>;
