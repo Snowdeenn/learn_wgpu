@@ -1,6 +1,20 @@
 use velum::{RenderData, Scene, SceneError, Velum, scene};
 use velum::backend::pass::{PassError, RenderOperation};
 
+#[test]
+fn global_resource_handles_support_ownership() {
+    use velum::backend::{binding_set, buffer, pipeline, shape, target, text, texture};
+    use velum::core::ResourceHandle;
+    fn supports<H: ResourceHandle>() {}
+    supports::<new_collection::Id<texture::TextureResource>>();
+    supports::<new_collection::Id<shape::MeshResource>>();
+    supports::<target::RenderTargetId>();
+    supports::<binding_set::TextureBindingSetId>();
+    supports::<text::TextId>();
+    supports::<pipeline::PipelineId<u32>>();
+    supports::<buffer::Buffer<[f32; 4], buffer::Uniform>>();
+}
+
 fn empty_scene() -> Scene {
     Scene { renderer: scene::renderer().build(), data: RenderData::new() }
 }

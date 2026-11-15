@@ -2,4 +2,4 @@ mod input;
 
 pub use input::*;
 mod resources;
-pub use resources::Resources;
+pub use resources::{OwnedResource, ResourceHandle, Resources, SharedResource};

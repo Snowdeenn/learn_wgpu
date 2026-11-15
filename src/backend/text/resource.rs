@@ -1,3 +1,5 @@
+use crate::core::OwnedResource;
+use crate::core::ResourceHandle;
 use glyphon::{Attrs, AttrsOwned, Buffer, FontSystem, Metrics, Shaping};
 use new_collection::Id;
 
@@ -8,6 +10,10 @@ pub struct TextResource {
 }
 
 pub type TextId = Id<TextResource>;
+
+impl ResourceHandle for TextId {
+    fn release(self) { let _ = remove(self); }
+}
 
 /// Metrics are logical pixels for screen instances and world units for world instances.
 #[derive(Clone, Copy, Debug)]
@@ -151,10 +157,10 @@ impl TextResource {
     }
 }
 
-pub fn register(description: TextDescription<'_>) -> Result<TextId, TextError> {
+pub fn register(description: TextDescription<'_>) -> Result<OwnedResource<TextId>, TextError> {
     let mut context = context::try_context()?;
     let text = TextResource::new(&mut context.font_system, description)?;
-    Ok(context.texts.insert(text))
+    Ok(OwnedResource::new(context.texts.insert(text)))
 }
 
 #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
@@ -180,8 +186,9 @@ pub fn set_layout(id: TextId, layout: TextLayout) -> Result<(), TextError> {
 
 #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
 pub fn remove(id: TextId) -> Result<(), TextError> {
-    context::try_context()?
-        .texts
+    let mut context = context::try_context()?;
+    if context.texts.get(id).is_none() { return Err(TextError::InvalidId(id)); }
+    context.texts
         .remove(id)
         .ok_or(TextError::InvalidId(id))?;
     Ok(())

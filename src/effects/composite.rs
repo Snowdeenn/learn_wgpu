@@ -1,3 +1,4 @@
+use crate::core::OwnedResource;
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding, TextureBindingSetId},
@@ -8,8 +9,8 @@ use crate::backend::{
 
 crate::define_pipeline_context!(Composition);
 pub struct CompositeEffect {
-    pub pipeline: PipelineId<CompositionPipelineContext>,
-    pub source: TextureBindingSetId,
+    pub pipeline: OwnedResource<PipelineId<CompositionPipelineContext>>,
+    pub source: OwnedResource<TextureBindingSetId>,
 }
 impl CompositeEffect {
     pub fn new(source: RenderTargetId, format: wgpu::TextureFormat) -> Self {

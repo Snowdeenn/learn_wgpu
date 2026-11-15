@@ -95,6 +95,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("GPU adapter required for this test");
     context::init(&adapter);
+    owned_resource_lifecycle();
     depth_ordering_and_resize();
     let device = context::device();
 
@@ -102,14 +103,20 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         width: 4,
         height: 4,
     }));
+    let source_owner = source;
+    let source = source_owner.id();
     let output = target::register(descriptor(TargetSize::Window {
         width: 4,
         height: 4,
     }));
+    let output_owner = output;
+    let output = output_owner.id();
     let fixed = target::register(descriptor(TargetSize::Fixed {
         width: 4,
         height: 4,
     }));
+    let fixed_owner = fixed;
+    let fixed = fixed_owner.id();
     let surface = target::create_target(&descriptor(TargetSize::Fixed {
         width: 8,
         height: 8,
@@ -149,6 +156,8 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         ],
     )
     .unwrap();
+    let copy_bindings_owner = copy_bindings;
+    let copy_bindings = copy_bindings_owner.id();
     let copy_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(
@@ -177,6 +186,8 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
             .build(),
         bind_groups: vec![None],
     });
+    let copy_pipeline_owner = copy_pipeline;
+    let copy_pipeline = copy_pipeline_owner.id();
 
     let read_sampler = backend::sampler::filtering("Readback sampler");
     let read_layout = {
@@ -200,6 +211,8 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         ],
     )
     .unwrap();
+    let read_bindings_owner = read_bindings;
+    let read_bindings = read_bindings_owner.id();
     let read_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(
@@ -226,6 +239,8 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         index_buffer: None,
     });
     let read_pipeline = pipeline::register(read_context);
+    let read_pipeline_owner = read_pipeline;
+    let read_pipeline = read_pipeline_owner.id();
     let mut frame = RenderData::new();
     let trace = frame.insert(Vec::<Step>::new());
     let mut passes = vec![
@@ -377,6 +392,8 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         width: 8,
         height: 8,
     }));
+    let replacement_owner = replacement;
+    let replacement = replacement_owner.id();
     assert_ne!(source, replacement);
     assert!(matches!(
         binding_set::group(copy_bindings),
@@ -410,6 +427,37 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     assert!(target::remove(replacement));
 }
 
+fn owned_resource_lifecycle() {
+    let owned = target::register(descriptor(TargetSize::Fixed { width: 4, height: 4 }));
+    let id = owned.id();
+    let shared = owned.share();
+    let other = shared.clone();
+    drop(shared);
+    assert!(target::get(id).is_some());
+    drop(other);
+    assert!(target::get(id).is_none());
+
+    let raw = context::device().create_texture(&wgpu::TextureDescriptor {
+        label: Some("Owned texture test"),
+        size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let (owner, _) = crate::backend::texture::register_texture(raw);
+    let texture_id = owner.id();
+    assert!(context::texture_storage().read().unwrap().get(texture_id).is_some());
+    drop(owner);
+    assert!(context::texture_storage().read().unwrap().get(texture_id).is_none());
+
+    let (mesh, _) = crate::geometry::primitives::create_rect_vertices();
+    let owner = crate::backend::shape::register(mesh);
+    let mesh_id = owner.id();
+    drop(owner);
+    assert!(!crate::backend::shape::remove(mesh_id));
+}
+
 fn depth_ordering_and_resize() {
     use crate::backend::depth;
     struct DrawDepth(wgpu::RenderPipeline);
@@ -417,7 +465,7 @@ fn depth_ordering_and_resize() {
         fn execute(
             &mut self,
             pass: &mut wgpu::RenderPass<'_>,
-            _: &mut crate::api::scene::RenderData,
+            _: &mut RenderData,
         ) -> Result<(), PassError> {
             pass.set_pipeline(&self.0);
             // Near green first, far red second: depth must keep green visible.
@@ -457,6 +505,8 @@ fn depth_ordering_and_resize() {
         width: 4,
         height: 4,
     }));
+    let color_owner = color;
+    let color = color_owner.id();
     let depth = depth::DepthTarget::new([4, 4]);
     let mut passes = vec![
         render(

@@ -1,3 +1,5 @@
+use crate::core::OwnedResource;
+use crate::core::ResourceHandle;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use new_collection::{Arena, Id};
@@ -7,15 +9,19 @@ use super::{RenderTarget, RenderTargetDescriptor, TargetSize, create_target};
 type RenderTargetStorage = Arena<Arc<RenderTarget>, RenderTarget>;
 pub type RenderTargetId = Id<RenderTarget>;
 
+impl ResourceHandle for RenderTargetId {
+    fn release(self) { remove(self); }
+}
+
 static STORAGE: OnceLock<RwLock<RenderTargetStorage>> = OnceLock::new();
 
 fn storage() -> &'static RwLock<RenderTargetStorage> {
     STORAGE.get_or_init(|| RwLock::new(RenderTargetStorage::new()))
 }
 
-pub fn register(descriptor: RenderTargetDescriptor) -> RenderTargetId {
+pub fn register(descriptor: RenderTargetDescriptor) -> OwnedResource<RenderTargetId> {
     let target = Arc::new(create_target(&descriptor));
-    storage().write().unwrap().insert(target)
+    OwnedResource::new(storage().write().unwrap().insert(target))
 }
 
 /// Snapshot of the current resource; resolve again after a resize.

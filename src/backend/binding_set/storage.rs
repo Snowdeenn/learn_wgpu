@@ -1,3 +1,5 @@
+use crate::core::OwnedResource;
+use crate::core::ResourceHandle;
 use std::sync::{Mutex, OnceLock};
 
 use new_collection::{Arena, Id};
@@ -5,6 +7,10 @@ use new_collection::{Arena, Id};
 use super::{BindingSetError, TextureBinding, TextureBindingSet};
 
 pub type TextureBindingSetId = Id<TextureBindingSet>;
+
+impl ResourceHandle for TextureBindingSetId {
+    fn release(self) { remove(self); }
+}
 static STORAGE: OnceLock<Mutex<Arena<TextureBindingSet>>> = OnceLock::new();
 
 fn storage() -> &'static Mutex<Arena<TextureBindingSet>> {
@@ -14,9 +20,9 @@ fn storage() -> &'static Mutex<Arena<TextureBindingSet>> {
 pub fn register(
     layout: &wgpu::BindGroupLayout,
     entries: Vec<TextureBinding>,
-) -> Result<TextureBindingSetId, BindingSetError> {
+) -> Result<OwnedResource<TextureBindingSetId>, BindingSetError> {
     let set = TextureBindingSet::new(layout.clone(), entries)?;
-    Ok(storage().lock().unwrap().insert(set))
+    Ok(OwnedResource::new(storage().lock().unwrap().insert(set)))
 }
 
 /// Resolve immediately before binding. A resize refreshes only the sets being used.

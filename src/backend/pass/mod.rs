@@ -1,3 +1,4 @@
+use crate::api::scene::RenderDataError;
 mod builder;
 mod list;
 mod macros;
@@ -56,7 +57,7 @@ pub enum PassError {
     MissingPipeline,
     MissingInstances,
     MissingData,
-    Data(crate::api::scene::RenderDataError),
+    Data(RenderDataError),
     BindingSet(BindingSetError),
     Text(TextError),
 }
@@ -79,8 +80,8 @@ impl std::fmt::Display for PassError {
     }
 }
 
-impl From<crate::api::scene::RenderDataError> for PassError {
-    fn from(error: crate::api::scene::RenderDataError) -> Self { Self::Data(error) }
+impl From<RenderDataError> for PassError {
+    fn from(error: RenderDataError) -> Self { Self::Data(error) }
 }
 
 impl std::error::Error for PassError {

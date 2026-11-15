@@ -1,4 +1,18 @@
+use crate::core::ResourceHandle;
+use new_collection::Id;
+use crate::backend::context;
 use super::Texture;
+
+/// Removes a texture and its atlas regions, if any.
+pub fn remove(id: Id<TextureResource>) -> bool {
+    let mut textures = context::texture_storage().write().unwrap();
+    if textures.get(id).is_none() { return false; }
+    textures.remove(id).is_some()
+}
+
+impl ResourceHandle for Id<TextureResource> {
+    fn release(self) { remove(self); }
+}
 
 #[derive(Debug)]
 pub enum TextureResource {

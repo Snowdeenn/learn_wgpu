@@ -1,3 +1,4 @@
+use crate::core::OwnedResource;
 use super::{AtlasRegion, Texture, TextureBuilder, TextureResource};
 use crate::backend::{context, sampler};
 use image::GenericImageView;
@@ -160,7 +161,7 @@ pub fn load_texture_array(
         },
     ))
 }
-pub fn register_texture(raw: wgpu::Texture) -> (Id<TextureResource>, wgpu::BindGroupLayout) {
+pub fn register_texture(raw: wgpu::Texture) -> (OwnedResource<Id<TextureResource>>, wgpu::BindGroupLayout) {
     let tex = Texture::from_raw(raw);
     let sampler = sampler::filtering("");
     let (lay, group) = crate::bind_group! {
@@ -177,12 +178,12 @@ pub fn register_texture(raw: wgpu::Texture) -> (Id<TextureResource>, wgpu::BindG
         storage.insert(resource)
     };
 
-    (id, lay)
+    (OwnedResource::new(id), lay)
 }
 
 pub fn register_texture_array(
     array: Texture,
-) -> Result<(Id<TextureResource>, wgpu::BindGroupLayout), &'static str> {
+) -> Result<(OwnedResource<Id<TextureResource>>, wgpu::BindGroupLayout), &'static str> {
     let dim = array.as_raw().dimension();
     if !matches!(dim, wgpu::TextureDimension::D2) || array.as_raw().depth_or_array_layers() == 1 {
         return Err("Only array texture can be use with register_texture_array()");
@@ -204,13 +205,13 @@ pub fn register_texture_array(
         storage.insert(TextureResource::Array(resource))
     };
 
-    Ok((id, lay))
+    Ok((OwnedResource::new(id), lay))
 }
 
 pub fn register_atlas(
     atlas: wgpu::Texture,
     regions: Vec<AtlasRegion>,
-) -> (Id<TextureResource>, Vec<Id<AtlasRegion>>) {
+) -> (OwnedResource<Id<TextureResource>>, Vec<Id<AtlasRegion>>) {
     let tex = Texture::from_raw(atlas);
     let sampler = sampler::pixel_art("Atlas sampler");
     let (_, group) = crate::bind_group! {
@@ -238,5 +239,5 @@ pub fn register_atlas(
         storage.insert(resource)
     };
 
-    (id, region_ids)
+    (OwnedResource::new(id), region_ids)
 }

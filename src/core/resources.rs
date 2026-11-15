@@ -6,7 +6,7 @@
 use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
-
+use std::sync::Arc;
 /// Registre centralisé pour l'injection de dépendances et la gestion des ressources clients.
 ///
 /// Chaque type de ressource est identifié de façon unique par son [`TypeId`].
@@ -18,7 +18,10 @@ pub struct Resources {
 
 impl Resources {
     /// Crée une nouvelle instance vide du registre de ressources.
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn new() -> Self {
         Self::default()
     }
@@ -89,4 +92,60 @@ macro_rules! unique_resource {
             }
         }
     };
+}
+
+/// Access ID for a resource registered in a global storage.
+pub trait ResourceHandle: Copy + 'static {
+    /// Removes the resource. Releasing an already removed ID has no effect.
+    fn release(self);
+}
+
+#[must_use = "Keep the owner alive while its resource is in use"]
+pub struct OwnedResource<H: ResourceHandle> {
+    handle: H,
+}
+
+impl<H: ResourceHandle> std::ops::Deref for OwnedResource<H> {
+    type Target = H;
+    fn deref(&self) -> &H { &self.handle }
+}
+
+impl<H: ResourceHandle> OwnedResource<H> {
+    pub const fn new(handle: H) -> Self {
+        OwnedResource { handle }
+    }
+
+    pub fn share(self) -> SharedResource<H> {
+        SharedResource {
+            owner: Arc::new(self),
+        }
+    }
+
+    pub const fn id(&self) -> H {
+        self.handle
+    }
+}
+
+impl<H: ResourceHandle> Drop for OwnedResource<H> {
+    fn drop(&mut self) {
+        self.handle.release()
+    }
+}
+#[must_use = "Keep a shared owner alive while its resource is in use"]
+pub struct SharedResource<H: ResourceHandle> {
+    owner: Arc<OwnedResource<H>>,
+}
+
+impl<H: ResourceHandle> SharedResource<H> {
+    pub fn id(&self) -> H {
+        self.owner.id()
+    }
+}
+
+impl<H: ResourceHandle> Clone for SharedResource<H> {
+    fn clone(&self) -> Self {
+        SharedResource {
+            owner: self.owner.clone(),
+        }
+    }
 }

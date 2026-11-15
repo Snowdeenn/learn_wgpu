@@ -1,3 +1,5 @@
+use crate::core::OwnedResource;
+use crate::core::ResourceHandle;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use new_collection::{Arena, Id};
@@ -14,9 +16,9 @@ fn effect_storage() -> &'static RwLock<EffectStorage> {
     EFFECTS.get_or_init(|| RwLock::new(EffectStorage::new()))
 }
 
-pub fn spawn_effect(description: Arc<EffectDescription>, position: [f32; 2]) -> Id<EffectInstance> {
+pub fn spawn_effect(description: Arc<EffectDescription>, position: [f32; 2]) -> OwnedResource<Id<EffectInstance>> {
     let instance = EffectInstance::new(description, position);
-    effect_storage().write().unwrap().insert(instance)
+    OwnedResource::new(effect_storage().write().unwrap().insert(instance))
 }
 
 pub fn update_effects(dt: f32) {
@@ -44,6 +46,14 @@ pub fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOutput)) 
     reason = "API du moteur conservee pour les autres scenes et modules."
 )]
 pub fn remove_effect(id: Id<EffectInstance>) -> bool {
-    let removed = effect_storage().write().unwrap().remove(id);
+    let removed = {
+        let mut effects = effect_storage().write().unwrap();
+        if effects.get(id).is_none() { return false; }
+        effects.remove(id)
+    };
     removed.is_some()
+}
+
+impl ResourceHandle for Id<EffectInstance> {
+    fn release(self) { remove_effect(self); }
 }

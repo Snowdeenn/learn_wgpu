@@ -1,3 +1,4 @@
+use crate::core::OwnedResource;
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding, TextureBindingSetId},
@@ -8,8 +9,8 @@ use crate::backend::{
 
 crate::define_pipeline_context!(Present);
 pub struct PresentEffect {
-    pub pipeline: PipelineId<PresentPipelineContext>,
-    pub source: TextureBindingSetId,
+    pub pipeline: OwnedResource<PipelineId<PresentPipelineContext>>,
+    pub source: OwnedResource<TextureBindingSetId>,
 }
 impl PresentEffect {
     pub fn new(source: RenderTargetId, format: wgpu::TextureFormat) -> Self {

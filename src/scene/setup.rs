@@ -1,3 +1,6 @@
+use crate::core::OwnedResource;
+use crate::core::ResourceHandle;
+use crate::api::scene::RenderData;
 use std::{sync::Arc, vec};
 
 use crate::effects::{
@@ -32,6 +35,7 @@ pub fn initialize(
     format: wgpu::TextureFormat,
     resolution: [u32; 2],
 ) {
+    let mut data = RenderData::new();
     let texture_shader =
         backend::load_shader(Some("Texture Shader"), "assets/shaders/texture.wgsl").unwrap();
     let mesh_shader =
@@ -48,7 +52,9 @@ pub fn initialize(
     let texture_b = backend::load_texture("Drole2", "assets/textures/thats-funny.webp").unwrap();
 
     let (id_a, lay_a) = backend::register_texture(texture_a);
+    let id_a = keep(&mut data, id_a);
     let (id_b, _) = backend::register_texture(texture_b);
+    let id_b = keep(&mut data, id_b);
 
     let path = vec![
         "assets/textures/idle/IDLE0.png",
@@ -61,6 +67,7 @@ pub fn initialize(
     ];
     let texture_array = backend::load_texture_array("text array", &path).unwrap();
     let (id_tex_array_a, tex_array_lay_a) = backend::register_texture_array(texture_array).unwrap();
+    let id_tex_array_a = keep(&mut data, id_tex_array_a);
 
     let path_b = vec![
         "assets/textures/run/RUN0.png",
@@ -75,6 +82,7 @@ pub fn initialize(
 
     let tex_array_b = backend::load_texture_array("Run", &path_b).unwrap();
     let (id_tex_array_b, _) = backend::register_texture_array(tex_array_b).unwrap();
+    let id_tex_array_b = keep(&mut data, id_tex_array_b);
 
     let path_c = vec![
         "assets/textures/attack/ATTACK2_0.png",
@@ -86,13 +94,17 @@ pub fn initialize(
 
     let tex_array_c = backend::load_texture_array("Attack", &path_c).unwrap();
     let (id_tex_array_c, _) = backend::register_texture_array(tex_array_c).unwrap();
+    let id_tex_array_c = keep(&mut data, id_tex_array_c);
 
     let (rect_mesh, _) = create_rect_vertices();
     let (circle_mesh, _) = create_circle_vertices(CircleOptions::default());
     let (triangle_mesh, _) = create_triangle_vertices();
     let rectangle = backend::shape::register(rect_mesh.clone());
+    let rectangle = keep(&mut data, rectangle);
     let circle = backend::shape::register(circle_mesh.clone());
+    let circle = keep(&mut data, circle);
     let triangle = backend::shape::register(triangle_mesh);
+    let triangle = keep(&mut data, triangle);
 
     let inst_1 = Dummy {
         ground_y: 0.0,
@@ -176,6 +188,7 @@ pub fn initialize(
     .unwrap();
 
     let (id_atlas, ids_regions) = backend::register_atlas(atlas, regions);
+    let id_atlas = keep(&mut data, id_atlas);
 
     let inst_6 = Dummy {
         ground_y: 0.0,
@@ -197,10 +210,13 @@ pub fn initialize(
 
     let instance_buffer = buffer::storage::<backend::RenderInstance>(instance_data.len() as u64)
         .expect("Impossible d'allouer le buffer d'instances");
+    let instance_buffer = keep(&mut data, instance_buffer);
 
     let vertex_buffer =
         buffer::storage_vertex::<Vertex>(50).expect("Impossible d'allouer le buffer de sommets");
+    let vertex_buffer = keep(&mut data, vertex_buffer);
     let index_buffer = buffer::index::<u32>(144).expect("Impossible d'allouer le buffer d'indices");
+    let index_buffer = keep(&mut data, index_buffer);
 
     let render_instances: Vec<_> = instance_data
         .iter()
@@ -215,6 +231,7 @@ pub fn initialize(
 
     let cam_buff =
         buffer::uniform::<math::Mat4>(1).expect("Impossible d'allouer le buffer de caméra");
+    let cam_buff = keep(&mut data, cam_buff);
 
     let (instance_lay, _) = crate::bind_group! {
         wgpu::ShaderStages::VERTEX => instance_buffer,
@@ -325,20 +342,20 @@ pub fn initialize(
     resources.insert(VertexBuffer(vertex_buffer));
     resources.insert(ScenePipeline::default());
     let particle_pipelines = ScenePipelines {
-        mesh: backend::pipeline::register(mesh_pipe_ctx),
-        texture: backend::pipeline::register(texture_pipe_ctx),
-        texture_array: backend::pipeline::register(tex_array_pipe_ctx),
+        mesh: keep(&mut data, backend::pipeline::register(mesh_pipe_ctx)),
+        texture: keep(&mut data, backend::pipeline::register(texture_pipe_ctx)),
+        texture_array: keep(&mut data, backend::pipeline::register(tex_array_pipe_ctx)),
     };
     resources.insert(ScenePipelines {
-        mesh: backend::pipeline::register(scene_mesh_pipe_ctx),
-        texture: backend::pipeline::register(scene_texture_pipe_ctx),
-        texture_array: backend::pipeline::register(scene_tex_array_pipe_ctx),
+        mesh: keep(&mut data, backend::pipeline::register(scene_mesh_pipe_ctx)),
+        texture: keep(&mut data, backend::pipeline::register(scene_texture_pipe_ctx)),
+        texture_array: keep(&mut data, backend::pipeline::register(scene_tex_array_pipe_ctx)),
     });
 
     resources.insert(CamBuffer(cam_buff));
     resources.insert(cam);
 
-    let mut data = crate::api::scene::RenderData::new();
+
     let instances = data.insert(InstanceData {
         data: instance_data,
     });
@@ -355,6 +372,7 @@ pub fn initialize(
         ..Default::default()
     })
     .expect("Impossible de creer le texte monde");
+    let world_label = keep(&mut data, world_label);
 
     let hud_label = backend::text::register(backend::text::TextDescription {
         content: "WASD : deplacer la camera",
@@ -363,6 +381,7 @@ pub fn initialize(
         ..Default::default()
     })
     .expect("Impossible de creer le texte ecran");
+    let hud_label = keep(&mut data, hud_label);
 
     let mut world_text = backend::text::Text::new(world_label, backend::text::TextSpace::World);
     world_text.position = [0.0, -40.0];
@@ -384,10 +403,11 @@ pub fn initialize(
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         sample_count: 1,
     });
+    let target = keep(&mut data, target);
 
     let blur = crate::effects::blur::BlurEffect::new(format, resolution);
     let present = crate::effects::present::PresentEffect::new(target, format);
-    let composition = crate::effects::composite::CompositeEffect::new(blur.target_a, format);
+    let composition = crate::effects::composite::CompositeEffect::new(blur.target_a.id(), format);
 
     let mode = data.insert(*resources.read_resource::<ScenePipeline>());
     let pipelines = *resources.read_resource::<ScenePipelines>();
@@ -399,8 +419,8 @@ pub fn initialize(
     };
 
     let present_operation = PresentOperation {
-        pipeline: present.pipeline,
-        source: present.source,
+        pipeline: present.pipeline.id(),
+        source: present.source.id(),
     };
 
     let particle_op = ParticleOperation {
@@ -408,20 +428,20 @@ pub fn initialize(
     };
 
     let blur_vertical = BlurVerticalOperation {
-        pipeline: blur.pipeline,
-        source: blur.source_a,
+        pipeline: blur.pipeline.id(),
+        source: blur.source_a.id(),
         direction: blur.vertical_group.clone(),
     };
 
     let blur_horizontal = BlurHorizontalOperation {
-        pipeline: blur.pipeline,
-        source: blur.source_b,
+        pipeline: blur.pipeline.id(),
+        source: blur.source_b.id(),
         direction: blur.horizontal_group.clone(),
     };
 
     let composition_op = CompositionOperation {
-        pipeline: composition.pipeline,
-        source: composition.source,
+        pipeline: composition.pipeline.id(),
+        source: composition.source.id(),
     };
 
     let depth = backend::depth::DepthTarget::new(resolution);
@@ -441,17 +461,17 @@ pub fn initialize(
             SceneTextOperation {},
         ))
         .add_pass(pass::render(
-            PassTarget::Offscreen(blur.target_a),
+            PassTarget::Offscreen(blur.target_a.id()),
             wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
             particle_op,
         ))
         .add_pass(pass::render(
-            PassTarget::Offscreen(blur.target_b),
+            PassTarget::Offscreen(blur.target_b.id()),
             wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
             blur_vertical,
         ))
         .add_pass(pass::render(
-            PassTarget::Offscreen(blur.target_a),
+            PassTarget::Offscreen(blur.target_a.id()),
             wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
             blur_horizontal,
         ))
@@ -466,6 +486,9 @@ pub fn initialize(
             present_operation,
         ));
 
+    data.insert(depth);
+    data.insert(present);
+    data.insert(composition);
     let scene = Scene {
         renderer: renderer.build(),
         data,
@@ -487,9 +510,10 @@ pub fn initialize(
     )
     .unwrap();
 
-    let (_id_bubble, _) = backend::register_texture(bubble);
+    let (bubble_owner, _) = backend::register_texture(bubble);
+    velum.scene_mut(scene).unwrap().data.insert(bubble_owner);
 
-    particle::spawn_effect(
+    let effect = particle::spawn_effect(
         Arc::new(EffectDescription {
             // Une seconde d'émission par bouffée, puis une pause avant la suivante.
             emitter: EmitterSettings::burst(100_000, 4.5),
@@ -548,4 +572,11 @@ pub fn initialize(
         }),
         [30.0, 200.0],
     );
+    velum.scene_mut(scene).unwrap().data.insert(effect);
+}
+
+fn keep<H: ResourceHandle>(data: &mut RenderData, owner: OwnedResource<H>) -> H {
+    let id = owner.id();
+    data.insert(owner);
+    id
 }

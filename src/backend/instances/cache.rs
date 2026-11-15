@@ -1,3 +1,4 @@
+use crate::core::OwnedResource;
 use std::ops::Range;
 use std::sync::{Mutex, OnceLock};
 
@@ -22,7 +23,7 @@ pub(in crate::backend) fn chunk_ranges(mut range: Range<u32>) -> impl Iterator<I
 }
 
 struct InstanceSlot {
-    buffer: Buffer<RenderInstance, StorageRead>,
+    buffer: OwnedResource<Buffer<RenderInstance, StorageRead>>,
     group: wgpu::BindGroup,
     capacity: usize,
 }
@@ -93,7 +94,7 @@ pub(in crate::backend) fn prepare_render_instances(
         cache.slots.push(InstanceSlot::new(required));
     } else if cache.slots[index].capacity < required {
         let old = std::mem::replace(&mut cache.slots[index], InstanceSlot::new(required));
-        buffer::delete_buffer(old.buffer);
+        drop(old);
     }
 
     cache.staging.clear();

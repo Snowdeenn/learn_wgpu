@@ -1,3 +1,4 @@
+use crate::core::OwnedResource;
 use super::storage;
 pub use super::storage::{get, remove};
 
@@ -10,7 +11,7 @@ pub trait ComputePipelineContext {
 
 pub fn register<T: ComputePipelineContext + Send + Sync + 'static>(
     context: T,
-) -> ComputePipelineId<T> {
+) -> OwnedResource<ComputePipelineId<T>> {
     storage::insert(context)
 }
 

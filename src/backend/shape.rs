@@ -1,3 +1,5 @@
+use crate::core::OwnedResource;
+use crate::core::ResourceHandle;
 use std::ops::Range;
 use std::sync::{OnceLock, RwLock};
 
@@ -10,14 +12,32 @@ use crate::backend::instances::Instance;
 use crate::geometry::mesh::{Mesh, Vertex as MeshVertex};
 
 pub struct MeshResource {
-    vertices: Buffer<MeshVertex, Vertex>,
-    indices: Buffer<u32, Index>,
+    vertices: OwnedResource<Buffer<MeshVertex, Vertex>>,
+    indices: OwnedResource<Buffer<u32, Index>>,
     index_count: u32,
 }
 
 static MESHES: OnceLock<RwLock<Arena<MeshResource>>> = OnceLock::new();
 
-pub fn register(mesh: Mesh) -> Id<MeshResource> {
+/// Removes a mesh and frees its vertex and index allocations.
+pub fn remove(id: Id<MeshResource>) -> bool {
+    let Some(storage) = MESHES.get() else { return false; };
+    let mesh = {
+        let mut meshes = storage.write().unwrap();
+        if meshes.get(id).is_none() { return false; }
+        meshes.remove(id)
+    };
+    let Some(mesh) = mesh else { return false; };
+    drop(mesh.vertices);
+    drop(mesh.indices);
+    true
+}
+
+impl ResourceHandle for Id<MeshResource> {
+    fn release(self) { remove(self); }
+}
+
+pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
     assert!(!mesh.vertices().is_empty(), "A mesh must contain vertices");
     assert!(!mesh.indices().is_empty(), "A mesh must contain indices");
     assert!(
@@ -32,13 +52,13 @@ pub fn register(mesh: Mesh) -> Id<MeshResource> {
     let indices = match buffer::index(mesh.indices().len() as u64) {
         Ok(indices) => indices,
         Err(error) => {
-            buffer::delete_buffer(vertices);
+            drop(vertices);
             panic!("Impossible d'allouer les indices du mesh: {error}");
         }
     };
     buffer::write_buffer(&vertices, 0, mesh.vertices());
     buffer::write_buffer(&indices, 0, mesh.indices());
-    MESHES
+    let id = MESHES
         .get_or_init(Default::default)
         .write()
         .unwrap()
@@ -46,7 +66,8 @@ pub fn register(mesh: Mesh) -> Id<MeshResource> {
             vertices,
             indices,
             index_count,
-        })
+        });
+    OwnedResource::new(id)
 }
 
 pub trait ShapeInstance: Instance {

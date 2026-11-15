@@ -1,3 +1,4 @@
+use crate::core::OwnedResource;
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding, TextureBindingSetId},
@@ -118,17 +119,17 @@ mod tests {
 }
 
 pub struct BlurEffect {
-    pub target_a: RenderTargetId,
-    pub target_b: RenderTargetId,
-    pub pipeline: PipelineId<BlurPipelineContext>,
-    pub source_a: TextureBindingSetId,
-    pub source_b: TextureBindingSetId,
+    pub target_a: OwnedResource<RenderTargetId>,
+    pub target_b: OwnedResource<RenderTargetId>,
+    pub pipeline: OwnedResource<PipelineId<BlurPipelineContext>>,
+    pub source_a: OwnedResource<TextureBindingSetId>,
+    pub source_b: OwnedResource<TextureBindingSetId>,
     pub vertical_group: wgpu::BindGroup,
     pub horizontal_group: wgpu::BindGroup,
     pub settings: BlurSettings,
     prev_settings: BlurSettings,
-    vertical_params: Buffer<BlurParams, Uniform>,
-    horizontal_params: Buffer<BlurParams, Uniform>,
+    vertical_params: OwnedResource<Buffer<BlurParams, Uniform>>,
+    horizontal_params: OwnedResource<Buffer<BlurParams, Uniform>>,
 }
 impl BlurEffect {
     pub fn new(format: wgpu::TextureFormat, resolution: [u32; 2]) -> Self {
@@ -156,7 +157,7 @@ impl BlurEffect {
 
         let blur_sampler = backend::sampler::filtering("Blur sampler");
 
-        let blur_a = target::get(blur_target_a).unwrap();
+        let blur_a = target::get(blur_target_a.id()).unwrap();
 
         let blur_layout = crate::bind_group_layout! {
             wgpu::ShaderStages::FRAGMENT => blur_a.texture(),
@@ -201,7 +202,7 @@ impl BlurEffect {
             vec![
                 TextureBinding::Texture {
                     binding: 0,
-                    target: blur_target_a,
+                    target: blur_target_a.id(),
                 },
                 TextureBinding::Sampler {
                     binding: 1,
@@ -216,7 +217,7 @@ impl BlurEffect {
             vec![
                 TextureBinding::Texture {
                     binding: 0,
-                    target: blur_target_b,
+                    target: blur_target_b.id(),
                 },
                 TextureBinding::Sampler {
                     binding: 1,

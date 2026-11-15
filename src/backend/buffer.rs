@@ -1,4 +1,5 @@
 #![allow(unused)]
+use crate::core::{OwnedResource, ResourceHandle};
 use super::bind_group::Bindable;
 use super::context;
 
@@ -72,6 +73,16 @@ impl<'a> Default for BufferBuilder<'a> {
 pub struct Buffer<T, K> {
     alloc_id: Id<Allocation>,
     _phantom: std::marker::PhantomData<(T, K)>,
+}
+
+impl<T, K> Copy for Buffer<T, K> {}
+
+impl<T, K> Clone for Buffer<T, K> {
+    fn clone(&self) -> Self { *self }
+}
+
+impl<T: bytemuck::Pod + 'static, K: BufferKind + 'static> ResourceHandle for Buffer<T, K> {
+    fn release(self) { delete_buffer(self); }
 }
 
 pub(super) struct ResolvedBuffer<K> {
@@ -187,7 +198,7 @@ impl<K: BindableBufferKind> Bindable for ResolvedBuffer<K> {
     }
 }
 
-pub fn storage<T: bytemuck::Pod>(capacity: u64) -> Result<Buffer<T, StorageRead>, AllocError> {
+pub fn storage<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, StorageRead>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
@@ -196,7 +207,7 @@ pub fn storage<T: bytemuck::Pod>(capacity: u64) -> Result<Buffer<T, StorageRead>
 
 pub fn storage_vertex<T: bytemuck::Pod>(
     capacity: u64,
-) -> Result<Buffer<T, StorageVertex>, AllocError> {
+) -> Result<OwnedResource<Buffer<T, StorageVertex>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
@@ -205,28 +216,28 @@ pub fn storage_vertex<T: bytemuck::Pod>(
 
 pub fn storage_rw<T: bytemuck::Pod>(
     capacity: u64,
-) -> Result<Buffer<T, StorageReadWrite>, AllocError> {
+) -> Result<OwnedResource<Buffer<T, StorageReadWrite>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
         .allocate::<T, StorageReadWrite>(capacity)
 }
 
-pub fn uniform<T: bytemuck::Pod>(capacity: u64) -> Result<Buffer<T, Uniform>, AllocError> {
+pub fn uniform<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, Uniform>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
         .allocate::<T, Uniform>(capacity)
 }
 
-pub fn vertex<T: bytemuck::Pod>(capacity: u64) -> Result<Buffer<T, Vertex>, AllocError> {
+pub fn vertex<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, Vertex>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
         .allocate::<T, Vertex>(capacity)
 }
 
-pub fn index<T: bytemuck::Pod>(capacity: u64) -> Result<Buffer<T, Index>, AllocError> {
+pub fn index<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, Index>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
@@ -236,7 +247,7 @@ pub fn index<T: bytemuck::Pod>(capacity: u64) -> Result<Buffer<T, Index>, AllocE
 pub fn write_buffer<T, K>(buffer: &Buffer<T, K>, offset: u64, data: &[T])
 where
     T: bytemuck::Pod,
-    K: BufferKind,
+    K: BufferKind + 'static,
 {
     context::buffer()
         .read()
@@ -247,7 +258,7 @@ where
 pub fn delete_buffer<T, K>(buffer: Buffer<T, K>)
 where
     T: bytemuck::Pod,
-    K: BufferKind,
+    K: BufferKind + 'static,
 {
     context::buffer().write().unwrap().deallocate(buffer);
 }
@@ -316,10 +327,10 @@ impl BufferArena {
         }
     }
 
-    pub fn allocate<T, K>(&mut self, capacity: u64) -> Result<Buffer<T, K>, AllocError>
+    pub fn allocate<T, K>(&mut self, capacity: u64) -> Result<OwnedResource<Buffer<T, K>>, AllocError>
     where
         T: bytemuck::Pod,
-        K: BufferKind,
+        K: BufferKind + 'static,
     {
         let size = std::mem::size_of::<T>() as u64 * capacity;
 
@@ -393,12 +404,12 @@ impl BufferArena {
         };
 
         let alloc_id = self.allocations.insert(alloc);
-        Ok(Buffer::new(alloc_id))
+        Ok(OwnedResource::new(Buffer::new(alloc_id)))
     }
 
     pub fn deallocate<T, K>(&mut self, buffer: Buffer<T, K>) {
         // TODO: Utiliser pleinement les options (améliorer la gestion d'erreur)
-        let alloc = self.allocations.get(buffer.alloc_id).unwrap();
+        let Some(alloc) = self.allocations.get(buffer.alloc_id) else { return; };
         let page = self.pages.get_mut(alloc.page).unwrap();
         page.allocations -= 1;
 
@@ -412,7 +423,7 @@ impl BufferArena {
     pub fn write<T, K>(&self, buffer: &Buffer<T, K>, offset: u64, data: &[T])
     where
         T: bytemuck::Pod,
-        K: BufferKind,
+        K: BufferKind + 'static,
     {
         let alloc = self.allocations.get(buffer.alloc_id).unwrap();
         let page = self.pages.get(alloc.page).unwrap();

@@ -22,3 +22,4 @@ pub mod particle;
 
 pub use api::{SceneError, Velum, scene};
 pub use api::scene::{RenderData, RenderDataError, RenderDataId, Scene, SceneId, SceneRenderer};
+pub use core::{OwnedResource, ResourceHandle, SharedResource};

@@ -1,4 +1,5 @@
-﻿use super::target::{self, RenderTargetDescriptor, RenderTargetId, TargetSize};
+use crate::core::OwnedResource;
+use super::target::{self, RenderTargetDescriptor, RenderTargetId, TargetSize};
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub fn depth_from_ground_y(y: f32, min_y: f32, max_y: f32) -> f32 {
     assert!(y.is_finite() && min_y.is_finite() && max_y.is_finite() && max_y > min_y);
@@ -7,7 +8,7 @@ pub fn depth_from_ground_y(y: f32, min_y: f32, max_y: f32) -> f32 {
 }
 /// Shares the scene color target's window resize policy.
 pub struct DepthTarget {
-    id: RenderTargetId,
+    id: OwnedResource<RenderTargetId>,
 }
 impl DepthTarget {
     pub fn new([width, height]: [u32; 2]) -> Self {
@@ -22,7 +23,7 @@ impl DepthTarget {
         }
     }
     pub fn id(&self) -> RenderTargetId {
-        self.id
+        self.id.id()
     }
 }
 pub fn opaque_state() -> wgpu::DepthStencilState {
