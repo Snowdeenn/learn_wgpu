@@ -165,14 +165,12 @@ Les chemins sont relatifs à la racine du projet. Aucun de ces changements n'est
   Mesurer capacité utile/réservée, fragmentation et slots inutilisés ; ajouter si nécessaire
   une réduction différée, une free list de régions ou une purge de pages inutilisées.
 
-. Prévoir une destruction explicite des ressources appartenant aux effets retirés/recréés.
-  BlurEffect crée deux cibles, deux ensembles de bindings, un pipeline et deux allocations uniform.
-  Les IDs ne suppriment pas automatiquement les entrées globales ; Buffer n'a pas de Drop libérant
-  son allocation logique. Même principe pour les ressources de PresentEffect et CompositeEffect.
-  Sources : src/effects/{blur,composite,present}.rs et les fonctions remove/delete_buffer du backend.
-  Définir un démontage tenant compte des ressources partagées. À traiter surtout avant chargements
-  de scènes répétés ou création/destruction dynamique d'effets, pas comme une fuite par frame.
-
+. Prévoir une destruction explicite des ressources appartenant aux effets retirés/recréés. FAIT.
+  Les enregistrements dans les arènes globales retournent un OwnedResource, qui retire la ressource
+  au Drop. Les effets conservent les propriétaires de leurs cibles, bindings, pipelines et buffers.
+  La conversion share() permet une propriété partagée : libération au dernier SharedResource détruit.
+  Les opérations utilisent des handles copiables sans prolonger la durée de vie des ressources.
+  Sources : src/core/resources.rs, src/effects/{blur,composite,present}.rs et stockages du backend.
 . Réduire la portée/fréquence des verrous avant d'envisager du lock-free.
   Les boucles de particules gardent le verrou de stockage pendant préparation et dessin ;
   les chemins d'atlas/buffers prennent aussi des verrous fins à répétition.

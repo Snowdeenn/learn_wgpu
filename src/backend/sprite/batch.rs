@@ -12,13 +12,16 @@ pub fn batch<T: SpriteInstance>(
     instances: &mut [T],
     instance_range: std::ops::Range<u32>,
 ) -> Vec<Batch> {
+    let mut batches = Vec::new();
+    batch_into(instances, instance_range, &mut batches);
+    batches
+}
+
+/// Groups only consecutive compatible sprites; never sorts the source list.
+pub fn batch_into<T: SpriteInstance>(instances: &[T], instance_range: std::ops::Range<u32>, batches: &mut Vec<Batch>) {
     let start = instance_range.start;
-    let slice = &mut instances[start as usize..instance_range.end as usize];
-
-    // Sup temp pour voir si plus tard on pourrait le garder tout en conservant l'ordre pour faire en objct moins de draw call
-    // slice.sort_by_key(sort_key); 
-
-    let mut batches: Vec<Batch> = Vec::new();
+    let slice = &instances[start as usize..instance_range.end as usize];
+    batches.clear();
 
     for (offset, instance) in slice.iter().enumerate() {
         let (resource, first_index, end_index) = sort_key(instance);
@@ -40,7 +43,6 @@ pub fn batch<T: SpriteInstance>(
         });
     }
 
-    batches
 }
 
 fn sort_key<T: SpriteInstance>(inst: &T) -> (Id<TextureResource>, u32, u32) {

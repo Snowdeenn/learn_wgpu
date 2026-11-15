@@ -9,7 +9,7 @@ mod context;
 pub mod compute;
 pub mod storage;
 pub use context::*;
-pub use storage::{PipelineId, get, register, remove};
+pub use storage::{DrawPipeline, PipelineId, get, register, remove};
 
 use crate::backend::context as gpu_context;
 

@@ -20,6 +20,39 @@ pub struct PipelineId<T> {
 
 impl<T> Copy for PipelineId<T> {}
 
+/// Type-erased access ID for a graphics pipeline context. Does not own it.
+#[derive(Clone, Copy)]
+pub struct DrawPipeline {
+    raw: Id<StoredContext>,
+    resolve: fn(Id<StoredContext>) -> Option<Arc<dyn PipelineContext + Send + Sync>>,
+}
+
+impl PartialEq for DrawPipeline {
+    fn eq(&self, other: &Self) -> bool { self.raw == other.raw }
+}
+impl Eq for DrawPipeline {}
+
+impl<T: PipelineContext + Send + Sync + 'static> PipelineId<T> {
+    pub fn erase(self) -> DrawPipeline {
+        fn resolve<T: PipelineContext + Send + Sync + 'static>(raw: Id<StoredContext>)
+            -> Option<Arc<dyn PipelineContext + Send + Sync>> {
+            let stored = storage().read().unwrap().get(raw)?.clone();
+            Some(stored.downcast::<T>().ok()?)
+        }
+        DrawPipeline { raw: self.raw, resolve: resolve::<T> }
+    }
+}
+
+impl DrawPipeline {
+    pub(crate) fn get(self) -> Option<Arc<dyn PipelineContext + Send + Sync>> {
+        (self.resolve)(self.raw)
+    }
+}
+
+impl<T: PipelineContext + Send + Sync + 'static> From<PipelineId<T>> for DrawPipeline {
+    fn from(id: PipelineId<T>) -> Self { id.erase() }
+}
+
 impl<T: Send + Sync + 'static> ResourceHandle for PipelineId<T> {
     fn release(self) { remove(self); }
 }

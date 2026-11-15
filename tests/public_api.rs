@@ -2,6 +2,31 @@ use velum::{RenderData, Scene, SceneError, Velum, scene};
 use velum::backend::pass::{PassError, RenderOperation};
 
 #[test]
+fn draw_sort_metadata_supports_default_depth_and_custom_order() {
+    use velum::backend::{DrawSortKey, RenderInstance, instances::Instance, shape::{MeshResource, ShapeInstance}};
+    use new_collection::Id;
+
+    struct DefaultObject;
+    impl Instance for DefaultObject {}
+    impl ShapeInstance for DefaultObject {
+        fn mesh(&self) -> Id<MeshResource> { panic!("Sorting does not resolve the mesh") }
+        fn render_instance(&self) -> RenderInstance {
+            RenderInstance { depth: 0.25, ..bytemuck::Zeroable::zeroed() }
+        }
+    }
+    assert_eq!(DefaultObject.sort_key(), DrawSortKey { draw_order: 0, depth: 0.25 });
+
+    struct OrderedObject;
+    impl Instance for OrderedObject {}
+    impl ShapeInstance for OrderedObject {
+        fn mesh(&self) -> Id<MeshResource> { panic!("Not needed") }
+        fn render_instance(&self) -> RenderInstance { panic!("Custom keys bypass GPU conversion") }
+        fn sort_key(&self) -> DrawSortKey { DrawSortKey { draw_order: 10, depth: 0.75 } }
+    }
+    assert_eq!(OrderedObject.sort_key(), DrawSortKey { draw_order: 10, depth: 0.75 });
+}
+
+#[test]
 fn global_resource_handles_support_ownership() {
     use velum::backend::{binding_set, buffer, pipeline, shape, target, text, texture};
     use velum::core::ResourceHandle;

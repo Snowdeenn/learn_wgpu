@@ -1,4 +1,5 @@
 use crate::api::scene::RenderDataError;
+use crate::backend::phase::DrawError;
 mod builder;
 mod list;
 mod macros;
@@ -51,6 +52,7 @@ pub fn compute(operation: impl ComputeOperation + 'static) -> PassContext {
 
 #[derive(Debug)]
 pub enum PassError {
+    Draw(DrawError),
     InvalidDepthTarget(RenderTargetId),
     MissingTarget(RenderTargetId),
     InvalidColorTarget(RenderTargetId),
@@ -65,6 +67,7 @@ pub enum PassError {
 impl std::fmt::Display for PassError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Draw(error) => error.fmt(f),
             Self::InvalidDepthTarget(id) => write!(f, "Invalid or mismatched depth target: {id}"),
             Self::MissingTarget(id) => write!(f, "Unknown pass target: {id}"),
             Self::InvalidColorTarget(id) => {
@@ -87,12 +90,17 @@ impl From<RenderDataError> for PassError {
 impl std::error::Error for PassError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Draw(error) => Some(error),
             Self::Data(error) => Some(error),
             Self::BindingSet(error) => Some(error),
             Self::Text(error) => Some(error),
             _ => None,
         }
     }
+}
+
+impl From<DrawError> for PassError {
+    fn from(error: DrawError) -> Self { Self::Draw(error) }
 }
 
 impl From<BindingSetError> for PassError {

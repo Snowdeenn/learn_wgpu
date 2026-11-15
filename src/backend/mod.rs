@@ -18,6 +18,10 @@ mod shader;
 pub mod text;
 pub mod shape;
 pub mod sprite;
+pub mod sort;
+pub mod phase;
+pub use phase::{DrawCommand, DrawError, DrawGeometry, RenderPhase};
+pub use sort::{DrawSortKey, SortPolicy};
 
 pub use buffer::write_buffer;
 pub use pipeline::{PipelineContext, bind};

@@ -95,6 +95,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("GPU adapter required for this test");
     context::init(&adapter);
+    crate::backend::phase::gpu_regression();
     owned_resource_lifecycle();
     depth_ordering_and_resize();
     let device = context::device();

@@ -413,6 +413,7 @@ pub fn initialize(
     let pipelines = *resources.read_resource::<ScenePipelines>();
 
     let operation = SceneOperation {
+        phase: backend::RenderPhase::new(backend::SortPolicy::PreserveOrder),
         mode,
         pipelines,
         instances: instances,

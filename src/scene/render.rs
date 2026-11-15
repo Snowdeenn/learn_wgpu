@@ -1,7 +1,7 @@
 use super::resources::*;
 use crate::{
     api::{SceneError, scene::Scene},
-    backend::{self, Sprite, SpriteInstance, shape, text},
+    backend::{self, DrawCommand, RenderPhase, Sprite, SpriteInstance, shape, text},
     camera::Camera2D,
     core::Resources,
     particle,
@@ -17,36 +17,29 @@ crate::define_render_operation! {
         mode: crate::api::scene::RenderDataId<ScenePipeline>,
         pipelines: ScenePipelines,
         instances: crate::api::scene::RenderDataId<InstanceData>,
+        phase: RenderPhase,
     }
 
     execute(this, pass, frame) {
-        let mesh = pipeline::get(this.pipelines.mesh)
-            .ok_or(PassError::MissingPipeline)?;
-
-        let texture = pipeline::get(this.pipelines.texture)
-            .ok_or(PassError::MissingPipeline)?;
-
-        let texture_array = pipeline::get(this.pipelines.texture_array)
-            .ok_or(PassError::MissingPipeline)?;
-
         let mode = *frame.require(this.mode)?;
-        let instances = frame.require_mut(this.instances)?;
-
-        match mode {
-            ScenePipeline::Mesh => {
-                backend::bind(&*mesh, pass);
-                shape::draw_all(&mut instances.data, pass);
-            }
-            ScenePipeline::Texture => {
-                draw_sprites(
-                    &texture,
-                    &texture_array,
-                    pass,
-                    &mut instances.data,
-                );
-            }
+        let instances = frame.require(this.instances)?;
+        this.phase.clear();
+        for object in instances.iter() {
+            let instance = SpriteInstance::render_instance(object);
+            let key = SpriteInstance::sort_key(object);
+            let command = match mode {
+                ScenePipeline::Mesh => DrawCommand::shape(this.pipelines.mesh, object.mesh, instance, key),
+                ScenePipeline::Texture => {
+                    let pipeline = match object.sprite() {
+                        Sprite::Array { .. } | Sprite::Animated { .. } => this.pipelines.texture_array.erase(),
+                        _ => this.pipelines.texture.erase(),
+                    };
+                    DrawCommand::sprite(pipeline, object.sprite().clone(), instance, key)
+                },
+            };
+            this.phase.push(command);
         }
-
+        this.phase.execute(pass)?;
         Ok(())
     }
 }

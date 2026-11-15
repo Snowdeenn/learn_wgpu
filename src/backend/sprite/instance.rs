@@ -1,3 +1,4 @@
+use crate::backend::DrawSortKey;
 use crate::backend::{
     instances::{Instance, InstanceData},
     texture::{AtlasRegion, TextureResource},
@@ -19,7 +20,7 @@ pub struct RenderInstance {
     pub uv_max: [f32; 2],
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Sprite {
     Separate {
         texture: Id<TextureResource>,
@@ -47,6 +48,13 @@ pub enum Sprite {
 
 pub trait SpriteInstance: Instance {
     fn render_instance(&self) -> RenderInstance;
+    /// Override to supply an explicit order or avoid constructing a render instance.
+    fn sort_key(&self) -> DrawSortKey {
+        DrawSortKey {
+            draw_order: 0,
+            depth: self.render_instance().depth,
+        }
+    }
     fn sprite(&self) -> &Sprite;
     fn sprite_mut(&mut self) -> &mut Sprite;
 }

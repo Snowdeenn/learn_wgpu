@@ -1,3 +1,4 @@
+use crate::backend::DrawSortKey;
 use crate::core::OwnedResource;
 use crate::core::ResourceHandle;
 use std::ops::Range;
@@ -73,6 +74,13 @@ pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
 pub trait ShapeInstance: Instance {
     fn mesh(&self) -> Id<MeshResource>;
     fn render_instance(&self) -> RenderInstance;
+    /// Override to supply an explicit order or avoid constructing a render instance.
+    fn sort_key(&self) -> DrawSortKey {
+        DrawSortKey {
+            draw_order: 0,
+            depth: self.render_instance().depth,
+        }
+    }
 }
 
 #[allow(
@@ -116,10 +124,16 @@ pub struct Batch {
 }
 
 pub fn batch<T: ShapeInstance>(instances: &mut [T], range: Range<u32>) -> Vec<Batch> {
+    let mut batches = Vec::new();
+    batch_into(instances, range, &mut batches);
+    batches
+}
+
+/// Groups consecutive compatible shapes without changing their draw order.
+pub fn batch_into<T: ShapeInstance>(instances: &[T], range: Range<u32>, batches: &mut Vec<Batch>) {
     let start = range.start;
-    let slice = &mut instances[start as usize..range.end as usize];
-    slice.sort_by_key(ShapeInstance::mesh);
-    let mut batches: Vec<Batch> = Vec::new();
+    let slice = &instances[start as usize..range.end as usize];
+    batches.clear();
     for (offset, instance) in slice.iter().enumerate() {
         let mesh = instance.mesh();
         let index = start + offset as u32;
@@ -134,7 +148,10 @@ pub fn batch<T: ShapeInstance>(instances: &mut [T], range: Range<u32>) -> Vec<Ba
             range: index..index + 1,
         });
     }
-    batches
+}
+
+pub(crate) fn contains(id: Id<MeshResource>) -> bool {
+    MESHES.get().is_some_and(|meshes| meshes.read().unwrap().get(id).is_some())
 }
 
 pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgpu::RenderPass<'_>) {
