@@ -104,7 +104,7 @@ impl DrawCommand {
 #[derive(Debug)]
 pub struct DrawError {
     pub command: usize,
-    pub reason: &'static str,
+    pub reason: String,
 }
 impl fmt::Display for DrawError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -182,7 +182,7 @@ impl RenderPhase {
         if self.commands.len() > u32::MAX as usize {
             return Err(DrawError {
                 command: 0,
-                reason: "Too many instances",
+                reason: "Too many instances".into(),
             });
         }
         if matches!(
@@ -193,7 +193,7 @@ impl RenderPhase {
                 if !draw.sort_key.depth.is_finite() {
                     return Err(DrawError {
                         command,
-                        reason: "Depth must be finite",
+                        reason: "Depth must be finite".into(),
                     });
                 }
             }
@@ -226,7 +226,7 @@ impl RenderPhase {
         for (index, command) in self.commands.iter().enumerate() {
             let error = |reason| DrawError {
                 command: index,
-                reason,
+                reason: String::from(reason),
             };
             let pipeline = command
                 .pipeline
@@ -270,7 +270,7 @@ impl RenderPhase {
             }
             let pipeline = first.pipeline.get().ok_or(DrawError {
                 command: start,
-                reason: "Missing pipeline",
+                reason: "Missing pipeline".into(),
             })?;
             bind(&*pipeline, pass);
             for (slot, group) in &first.bindings {
@@ -293,7 +293,10 @@ impl RenderPhase {
                         &mut self.shape_batches,
                     );
                     for batch in &self.shape_batches {
-                        shape::draw(&mut self.shapes, batch, pass);
+                        shape::draw(&mut self.shapes, batch, pass).map_err(|e| DrawError {
+                            command: start + batch.range.start as usize,
+                            reason: e.to_string(),
+                        })?;
                     }
                 }
                 DrawGeometry::Sprite(_) => {
@@ -312,7 +315,10 @@ impl RenderPhase {
                         &mut self.sprite_batches,
                     );
                     for batch in &self.sprite_batches {
-                        sprite::draw(&mut self.sprites, batch, pass);
+                        sprite::draw(&mut self.sprites, batch, pass).map_err(|e| DrawError {
+                            command: start + batch.range.start as usize,
+                            reason: e.to_string(),
+                        })?;
                     }
                 }
             }

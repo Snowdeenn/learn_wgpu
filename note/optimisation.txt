@@ -15,10 +15,13 @@
 . Chaque batch réserve un buffer dimensionné sur range.end. Un batch 9000..9010 réserve de la place pour au moins 9010 instances, alors qu’il n’en utilise que dix. 
   Avec beaucoup de batches, les espaces inutilisés s’accumulent.
 
-. Le batching trie les instances par texture. Ça réduit les changements de ressources, mais modifie les superpositions des sprites transparents. 
-  Si l’ordre du tableau doit être respecté, regroupe uniquement les instances consécutives compatibles.
+. Supprimer le tri implicite par texture qui modifie les superpositions des sprites transparents. FAIT.
+  Les batchers de sprites et de formes regroupent uniquement les éléments consécutifs compatibles.
 
-. Respect de l'ordre de superposition des sprites transparents pendant le batching.
+. Respect de l'ordre de superposition des sprites transparents pendant le batching. FAIT.
+  RenderPhase applique une politique explicite et un tri stable aux DrawCommand sans réordonner
+  les objets sources. Le batching respecte ensuite cet ordre, y compris pour une séquence A, B, A.
+  Tests CPU et GPU : ordre, mélange transparent, séparation des bindings et absence de rejeu.
 
 . Migrer tout les conteneurs statique vers des structures Lock Free.
 

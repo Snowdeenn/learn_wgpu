@@ -7,13 +7,44 @@ use super::pass::RenderPassBuilder;
 
 use super::context;
 
+#[derive(Debug)]
+pub enum RendererInitError {
+    Surface(wgpu::CreateSurfaceError),
+    Adapter(wgpu::RequestAdapterError),
+    Context(context::InitError),
+    SurfaceConfiguration,
+    Text(super::text::InitError),
+}
+impl std::fmt::Display for RendererInitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Surface(e) => write!(f, "Surface creation failed: {e}"),
+            Self::Adapter(e) => write!(f, "Adapter request failed: {e}"),
+            Self::Context(e) => write!(f, "Context initialization failed: {e}"),
+            Self::SurfaceConfiguration => f.write_str("No compatible surface configuration"),
+            Self::Text(e) => write!(f, "Text initialization failed: {e}"),
+        }
+    }
+}
+impl std::error::Error for RendererInitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Surface(e) => Some(e),
+            Self::Adapter(e) => Some(e),
+            Self::Context(e) => Some(e),
+            Self::Text(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
 pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
     pub conf: wgpu::SurfaceConfiguration,
 }
 
 impl Renderer {
-    pub fn new(window: Arc<Window>) -> Self {
+    pub fn new(window: Arc<Window>) -> Result<Self, RendererInitError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             flags: wgpu::InstanceFlags::debugging() | wgpu::InstanceFlags::VALIDATION,
@@ -25,7 +56,7 @@ impl Renderer {
         // La surface possede un clone de l'Arc : sa duree de vie peut etre 'static.
         let surface = instance
             .create_surface(window.clone())
-            .expect("Impossible de creer la surface");
+            .map_err(RendererInitError::Surface)?;
 
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -33,21 +64,21 @@ impl Renderer {
             compatible_surface: Some(&surface),
             ..Default::default()
         }))
-        .expect("Aucun adaptateur graphique compatible");
+        .map_err(RendererInitError::Adapter)?;
 
-        context::init(&adapter);
+        context::init(&adapter).map_err(RendererInitError::Context)?;
 
         let size = window.inner_size();
         let mut conf = surface
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
-            .expect("Aucune configuration de surface compatible");
+            .ok_or(RendererInitError::SurfaceConfiguration)?;
         conf.present_mode = wgpu::PresentMode::Fifo;
         conf.format = wgpu::TextureFormat::Bgra8UnormSrgb;
         surface.configure(&context::device(None), &conf);
 
-        super::text::init(conf.format).expect("Impossible d'initialiser le contexte texte");
+        super::text::init(conf.format).map_err(RendererInitError::Text)?;
 
-        Self { surface, conf }
+        Ok(Self { surface, conf })
     }
 
     pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
@@ -61,9 +92,10 @@ impl Renderer {
     }
 
     pub fn begin_frame<'a>(&'a self, window: &'a Window) -> Result<Option<Frame<'a>>, &'a str> {
-        let encoder = context::device(None).create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Main encoder"),
-        });
+        let encoder =
+            context::device(None).create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Main encoder"),
+            });
 
         let surface = &self.surface;
         let conf = &self.conf;
@@ -152,13 +184,17 @@ impl<'a> Frame<'a> {
 
     pub fn finish(self, measure_gpu_wait: bool) -> Option<std::time::Duration> {
         let submission = context::queue(None).submit([self.encoder.finish()]);
-        let gpu_wait = measure_gpu_wait.then(|| {
-            let start = std::time::Instant::now();
-            context::device(None).poll(wgpu::PollType::Wait {
-                submission_index: Some(submission),
-                timeout: Some(std::time::Duration::from_secs(10)),
-            }).map(|_| start.elapsed())
-        }).and_then(Result::ok);
+        let gpu_wait = measure_gpu_wait
+            .then(|| {
+                let start = std::time::Instant::now();
+                context::device(None)
+                    .poll(wgpu::PollType::Wait {
+                        submission_index: Some(submission),
+                        timeout: Some(std::time::Duration::from_secs(10)),
+                    })
+                    .map(|_| start.elapsed())
+            })
+            .and_then(Result::ok);
         super::instances::submitted();
         super::text::submitted();
         self.window.pre_present_notify();

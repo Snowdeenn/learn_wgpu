@@ -1,5 +1,5 @@
-use crate::api::scene::{RenderData, RenderDataId};
 use super::*;
+use crate::api::scene::{RenderData, RenderDataId};
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding},
@@ -94,7 +94,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     let adapter =
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("GPU adapter required for this test");
-    context::init(&adapter);
+    context::init(&adapter).unwrap();
     crate::backend::phase::gpu_regression();
     owned_resource_lifecycle();
     depth_ordering_and_resize();
@@ -429,7 +429,23 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
 }
 
 fn owned_resource_lifecycle() {
-    let owned = target::register(descriptor(TargetSize::Fixed { width: 4, height: 4 }));
+    let owner = crate::backend::buffer::storage::<u32>(4).unwrap();
+    let handle = owner.id();
+    assert!(handle.resolve_binding().is_ok());
+    drop(owner);
+    assert!(matches!(
+        handle.resolve_binding(),
+        Err(crate::backend::buffer::BindingError::MissingAllocation)
+    ));
+    assert!(matches!(
+        crate::try_bind_group! { wgpu::ShaderStages::VERTEX => handle },
+        Err(crate::backend::buffer::BindingError::MissingAllocation)
+    ));
+
+    let owned = target::register(descriptor(TargetSize::Fixed {
+        width: 4,
+        height: 4,
+    }));
     let id = owned.id();
     let shared = owned.share();
     let other = shared.clone();
@@ -440,17 +456,35 @@ fn owned_resource_lifecycle() {
 
     let raw = context::device(None).create_texture(&wgpu::TextureDescriptor {
         label: Some("Owned texture test"),
-        size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-        mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+        size: wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
     let (owner, _) = crate::backend::texture::register_texture(raw);
     let texture_id = owner.id();
-    assert!(context::texture_storage(None).read().unwrap().get(texture_id).is_some());
+    assert!(
+        context::texture_storage(None)
+            .read()
+            .unwrap()
+            .get(texture_id)
+            .is_some()
+    );
     drop(owner);
-    assert!(context::texture_storage(None).read().unwrap().get(texture_id).is_none());
+    assert!(
+        context::texture_storage(None)
+            .read()
+            .unwrap()
+            .get(texture_id)
+            .is_none()
+    );
 
     let (mesh, _) = crate::geometry::primitives::create_rect_vertices();
     let owner = crate::backend::shape::register(mesh);

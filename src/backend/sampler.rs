@@ -156,8 +156,8 @@ pub struct Sampler<K> {
 }
 
 impl<K> Sampler<K> {
-    pub(crate) fn resolve_binding(&self) -> &Self {
-        self
+    pub(crate) fn resolve_binding(&self) -> Result<&Self, crate::backend::buffer::BindingError> {
+        Ok(self)
     }
 
     pub fn as_raw(&self) -> &wgpu::Sampler {

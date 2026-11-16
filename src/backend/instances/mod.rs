@@ -1,7 +1,58 @@
 pub(crate) mod cache;
 
-pub(crate) use cache::submitted;
 pub use cache::memory_stats;
+pub(crate) use cache::submitted;
+
+#[derive(Debug)]
+pub enum InstanceError {
+    Allocation(crate::backend::buffer::AllocError),
+    Binding(crate::backend::buffer::BindingError),
+    InvalidRange,
+    BatchTooLarge,
+    InstanceCountMismatch,
+    MissingTexture,
+    TextureKindMismatch,
+    MissingAtlasRegion,
+    InvalidTextureLayer,
+    MissingMesh,
+}
+impl std::fmt::Display for InstanceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Allocation(e) => write!(f, "Instance allocation failed: {e}"),
+            Self::Binding(e) => write!(f, "Instance binding failed: {e}"),
+            Self::InvalidRange => f.write_str("Instance range out of bounds"),
+            Self::BatchTooLarge => f.write_str("Instance batch exceeds slot capacity"),
+            Self::InstanceCountMismatch => {
+                f.write_str("Instance iterator length does not match the range")
+            }
+            Self::MissingTexture => f.write_str("Unknown texture"),
+            Self::TextureKindMismatch => f.write_str("Texture does not match sprite kind"),
+            Self::MissingAtlasRegion => f.write_str("Unknown atlas region"),
+            Self::InvalidTextureLayer => f.write_str("Invalid texture array layer"),
+            Self::MissingMesh => f.write_str("Unknown mesh"),
+        }
+    }
+}
+impl std::error::Error for InstanceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Allocation(e) => Some(e),
+            Self::Binding(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl From<crate::backend::buffer::AllocError> for InstanceError {
+    fn from(e: crate::backend::buffer::AllocError) -> Self {
+        Self::Allocation(e)
+    }
+}
+impl From<crate::backend::buffer::BindingError> for InstanceError {
+    fn from(e: crate::backend::buffer::BindingError) -> Self {
+        Self::Binding(e)
+    }
+}
 
 use new_collection::{Arena, Id};
 use std::{
@@ -51,14 +102,17 @@ impl<T: Instance> Clone for InstanceId<T> {
         *self
     }
 }
- 
+
 #[derive(Default)]
 pub struct InstanceStorage {
     data: Arena<Box<dyn Any>>,
 }
 
 impl InstanceStorage {
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn new() -> Self {
         Self::default()
     }
@@ -71,7 +125,10 @@ impl InstanceStorage {
     }
 
     /// IDs belong to the storage that created them.
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn get<T: Instance>(&self, id: &InstanceId<T>) -> Option<&InstanceData<T>> {
         self.data.get(id.raw)?.downcast_ref()
     }
@@ -80,7 +137,10 @@ impl InstanceStorage {
         self.data.get_mut(id.raw)?.downcast_mut()
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn remove<T: Instance>(&mut self, id: &InstanceId<T>) -> Option<InstanceData<T>> {
         // Check before removing: Arena::remove must not be called twice on an empty slot.
         self.get(id)?;

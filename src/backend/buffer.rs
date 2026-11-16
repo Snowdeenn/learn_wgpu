@@ -174,20 +174,42 @@ impl<T, K: BufferKind> Buffer<T, K> {
 }
 
 impl<T, K: BindableBufferKind> Buffer<T, K> {
-    pub fn resolve_binding(&self) -> impl Bindable + use<T, K> {
+    pub fn resolve_binding(&self) -> Result<impl Bindable + use<T, K>, BindingError> {
         let storage_owner = context::buffer(None);
         let arena = storage_owner.read().unwrap();
-        let allocation = arena.allocations.get(self.alloc_id).unwrap();
-        let page = &arena.pages[allocation.page];
+        let allocation = arena
+            .allocations
+            .get(self.alloc_id)
+            .ok_or(BindingError::MissingAllocation)?;
+        let page = arena
+            .pages
+            .get(allocation.page)
+            .ok_or(BindingError::MissingPage)?;
 
-        ResolvedBuffer::<K> {
+        Ok(ResolvedBuffer::<K> {
             buffer: page.buffer.clone(),
             offset: allocation.offset,
             size: allocation.size,
             _marker: std::marker::PhantomData,
-        }
+        })
     }
 }
+
+#[derive(Debug)]
+pub enum BindingError {
+    MissingAllocation,
+    MissingPage,
+}
+
+impl std::fmt::Display for BindingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::MissingAllocation => "Buffer allocation is missing",
+            Self::MissingPage => "Buffer page is missing",
+        })
+    }
+}
+impl std::error::Error for BindingError {}
 
 impl<K: BindableBufferKind> Bindable for ResolvedBuffer<K> {
     fn binding_type(&self) -> wgpu::BindingType {
@@ -362,7 +384,7 @@ impl BufferArena {
         if size > Self::PAGE_SIZE {
             return Err(AllocError::AllocationTooLarge {
                 requested: size,
-                page_size: Self::PAGE_SIZE, 
+                page_size: Self::PAGE_SIZE,
             });
         }
 
@@ -437,8 +459,8 @@ impl BufferArena {
     }
 
     pub fn deallocate<T, K>(&mut self, buffer: Buffer<T, K>) {
-        // TODO: Utiliser pleinement les options (am?liorer la gestion d'erreur)
         let Some(alloc) = self.allocations.get(buffer.alloc_id) else {
+            tracing::error!("Invalid or unknow Id {}", buffer.alloc_id);
             return;
         };
         let page = self.pages.get_mut(alloc.page).unwrap();

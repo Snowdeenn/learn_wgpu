@@ -297,15 +297,15 @@ pub trait Bindable {
 /// Infer a layout from resources without creating a bind group.
 /// Bindings are numbered in declaration order, as in `bind_group!`.
 #[macro_export]
-macro_rules! bind_group_layout {
-    ($($visibility:expr => $resource:expr),+ $(,)?) => {{
+macro_rules! try_bind_group_layout {
+    ($($visibility:expr => $resource:expr),+ $(,)?) => {{ (|| -> Result<_, $crate::backend::buffer::BindingError> {
         use $crate::backend::bind_group::Bindable;
 
         let mut entries = Vec::new();
         $(
             {
                 let resource = &$resource;
-                let resolved = resource.resolve_binding();
+                let resolved = resource.resolve_binding()?;
                 entries.push(wgpu::BindGroupLayoutEntry {
                     binding: entries.len() as u32,
                     visibility: $visibility,
@@ -315,17 +315,17 @@ macro_rules! bind_group_layout {
             }
         )*
 
-        $crate::backend::context::device(None)
+        Ok($crate::backend::context::device(None)
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: None,
                 entries: &entries,
-            })
-    }};
+            }))
+    })() }};
 }
 
 #[macro_export]
-macro_rules! bind_group {
-    ($($visibility:expr => $resource:expr),+ $(,)?) => {{
+macro_rules! try_bind_group {
+    ($($visibility:expr => $resource:expr),+ $(,)?) => {{ (|| -> Result<_, $crate::backend::buffer::BindingError> {
         use $crate::backend::bind_group::Bindable;
         use $crate::backend::context;
 
@@ -335,7 +335,7 @@ macro_rules! bind_group {
         $(
             let binding = layout_entries.len() as u32;
             let resource = &$resource;
-            let resolved = resource.resolve_binding();
+            let resolved = resource.resolve_binding()?;
 
             layout_entries.push(wgpu::BindGroupLayoutEntry {
                 binding,
@@ -363,6 +363,15 @@ macro_rules! bind_group {
                 entries: &entries,
             });
 
-        (layout, group)
-    }};
+        Ok((layout, group))
+    })() }};
+}
+
+#[macro_export]
+macro_rules! bind_group {
+    ($($tokens:tt)*) => { $crate::try_bind_group! { $($tokens)* }.expect("Invalid binding resource") };
+}
+#[macro_export]
+macro_rules! bind_group_layout {
+    ($($tokens:tt)*) => { $crate::try_bind_group_layout! { $($tokens)* }.expect("Invalid binding resource") };
 }

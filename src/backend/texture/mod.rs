@@ -167,8 +167,8 @@ impl Texture {
         &self.view
     }
 
-    pub(crate) fn resolve_binding(&self) -> &Self {
-        self
+    pub(crate) fn resolve_binding(&self) -> Result<&Self, crate::backend::buffer::BindingError> {
+        Ok(self)
     }
 }
 

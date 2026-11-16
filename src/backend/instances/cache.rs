@@ -1,9 +1,10 @@
+use super::InstanceError;
 use crate::core::OwnedResource;
 use std::ops::Range;
 use std::sync::{Mutex, OnceLock};
 
-use crate::backend::{RenderInstance, Sprite, SpriteInstance};
 use crate::backend::buffer::{self, Buffer, StorageRead};
+use crate::backend::{RenderInstance, Sprite, SpriteInstance};
 
 // Slots grow to a power of two, so their rounded capacity must still fit a page.
 const MAX_INSTANCES_PER_SLOT: usize =
@@ -29,19 +30,24 @@ struct InstanceSlot {
 }
 
 impl InstanceSlot {
-    fn new(required: usize) -> Self {
+    fn new(required: usize) -> Result<Self, InstanceError> {
+        if required == 0 {
+            return Err(InstanceError::InvalidRange);
+        }
+        if required > MAX_INSTANCES_PER_SLOT {
+            return Err(InstanceError::BatchTooLarge);
+        }
         let capacity = required.next_power_of_two();
-        let buffer = buffer::storage::<RenderInstance>(capacity as u64)
-            .expect("Impossible d'allouer le buffer d'instances de rendu");
+        let buffer = buffer::storage::<RenderInstance>(capacity as u64)?;
         crate::backend::metrics::allocation();
-        let (_, group) = crate::bind_group! {
+        let (_, group) = crate::try_bind_group! {
             wgpu::ShaderStages::VERTEX => buffer,
-        };
-        Self {
+        }?;
+        Ok(Self {
             buffer,
             group,
             capacity,
-        }
+        })
     }
 }
 
@@ -57,60 +63,79 @@ static CACHE: OnceLock<Mutex<InstanceCache>> = OnceLock::new();
 pub(in crate::backend) fn prepare<T: SpriteInstance>(
     instances: &[T],
     range: std::ops::Range<u32>,
-) -> wgpu::BindGroup {
-    let render_instances = instances[range.start as usize..range.end as usize]
-        .iter()
-        .map(|instance| {
-            let mut render = instance.render_instance();
-            if let Sprite::Atlas {
-                texture, region, ..
-            } = instance.sprite()
-            {
-                let storage_owner = crate::backend::context::texture_storage(None);
-                let storage = storage_owner.read().unwrap();
-                let resource = storage.get(*texture).expect("Unknown texture");
-                let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource
-                else {
-                    panic!("Expected an atlas texture");
-                };
-                let region = regions.get(*region).expect("Unknown atlas region");
-                render.uv_min = region.uv_min;
-                render.uv_max = region.uv_max;
-            }
-            render
-        });
-    prepare_render_instances(render_instances, range)
+) -> Result<wgpu::BindGroup, InstanceError> {
+    let slice = instances
+        .get(range.start as usize..range.end as usize)
+        .ok_or(InstanceError::InvalidRange)?;
+    let render_instances = slice.iter().map(|instance| {
+        let mut render = instance.render_instance();
+        if let Sprite::Atlas {
+            texture, region, ..
+        } = instance.sprite()
+        {
+            let storage_owner = crate::backend::context::texture_storage(None);
+            let storage = storage_owner.read().unwrap();
+            let resource = storage.get(*texture).ok_or(InstanceError::MissingTexture)?;
+            let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource else {
+                return Err(InstanceError::TextureKindMismatch);
+            };
+            let region = regions
+                .get(*region)
+                .ok_or(InstanceError::MissingAtlasRegion)?;
+            render.uv_min = region.uv_min;
+            render.uv_max = region.uv_max;
+        }
+        Ok(render)
+    });
+    try_prepare_render_instances(render_instances, range)
 }
 
 pub(in crate::backend) fn prepare_render_instances(
     instances: impl Iterator<Item = RenderInstance>,
     range: std::ops::Range<u32>,
-) -> wgpu::BindGroup {
-    let required = (range.end - range.start) as usize;
-    assert!(required <= MAX_INSTANCES_PER_SLOT, "Split instance batches before preparing them");
+) -> Result<wgpu::BindGroup, InstanceError> {
+    try_prepare_render_instances(instances.map(Ok), range)
+}
+
+fn try_prepare_render_instances(
+    instances: impl Iterator<Item = Result<RenderInstance, InstanceError>>,
+    range: Range<u32>,
+) -> Result<wgpu::BindGroup, InstanceError> {
+    let required = range
+        .end
+        .checked_sub(range.start)
+        .ok_or(InstanceError::InvalidRange)? as usize;
+    if required > MAX_INSTANCES_PER_SLOT {
+        return Err(InstanceError::BatchTooLarge);
+    }
+    if required == 0 {
+        return Err(InstanceError::InvalidRange);
+    }
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
     let index = cache.next;
 
+    cache.staging.clear();
+    for instance in instances.take(required + 1) {
+        cache.staging.push(instance?);
+    }
+    if cache.staging.len() != required {
+        return Err(InstanceError::InstanceCountMismatch);
+    }
+
     if index == cache.slots.len() {
-        cache.slots.push(InstanceSlot::new(required));
+        cache.slots.push(InstanceSlot::new(required)?);
     } else if cache.slots[index].capacity < required {
-        let old = std::mem::replace(&mut cache.slots[index], InstanceSlot::new(required));
+        let old = std::mem::replace(&mut cache.slots[index], InstanceSlot::new(required)?);
         drop(old);
     }
 
-    cache.staging.clear();
-    cache.staging.extend(instances);
     crate::backend::metrics::upload((cache.staging.len() * size_of::<RenderInstance>()) as u64);
     let slot = &cache.slots[index];
-    buffer::write_buffer(
-        &slot.buffer,
-        0,
-        &cache.staging,
-    );
+    buffer::write_buffer(&slot.buffer, 0, &cache.staging);
     let group = slot.group.clone();
     // Each call before submission needs its own slot: queue writes precede all draws.
     cache.next += 1;
-    group
+    Ok(group)
 }
 
 pub(crate) fn submitted() {
@@ -124,15 +149,40 @@ pub(crate) fn submitted() {
 pub fn memory_stats() -> (usize, u64) {
     CACHE.get().map_or((0, 0), |cache| {
         let cache = cache.lock().unwrap();
-        (cache.slots.len(), cache.slots.iter().map(|slot| {
-            (slot.capacity * size_of::<RenderInstance>()) as u64
-        }).sum())
+        (
+            cache.slots.len(),
+            cache
+                .slots
+                .iter()
+                .map(|slot| (slot.capacity * size_of::<RenderInstance>()) as u64)
+                .sum(),
+        )
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_batches_return_errors_without_initializing_the_gpu() {
+        assert!(matches!(
+            prepare_render_instances(std::iter::empty(), 4..3),
+            Err(InstanceError::InvalidRange)
+        ));
+        assert!(matches!(
+            prepare_render_instances(std::iter::empty(), 0..0),
+            Err(InstanceError::InvalidRange)
+        ));
+        assert!(matches!(
+            prepare_render_instances(std::iter::empty(), 0..MAX_INSTANCES_PER_SLOT as u32 + 1),
+            Err(InstanceError::BatchTooLarge)
+        ));
+        assert!(matches!(
+            InstanceSlot::new(usize::MAX),
+            Err(InstanceError::BatchTooLarge)
+        ));
+    }
 
     #[test]
     fn large_batch_keeps_every_instance_in_order_and_fits_pages() {

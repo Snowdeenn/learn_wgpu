@@ -22,20 +22,28 @@ static MESHES: OnceLock<RwLock<Arena<MeshResource>>> = OnceLock::new();
 
 /// Removes a mesh and frees its vertex and index allocations.
 pub fn remove(id: Id<MeshResource>) -> bool {
-    let Some(storage) = MESHES.get() else { return false; };
+    let Some(storage) = MESHES.get() else {
+        return false;
+    };
     let mesh = {
         let mut meshes = storage.write().unwrap();
-        if meshes.get(id).is_none() { return false; }
+        if meshes.get(id).is_none() {
+            return false;
+        }
         meshes.remove(id)
     };
-    let Some(mesh) = mesh else { return false; };
+    let Some(mesh) = mesh else {
+        return false;
+    };
     drop(mesh.vertices);
     drop(mesh.indices);
     true
 }
 
 impl ResourceHandle for Id<MeshResource> {
-    fn release(self) { remove(self); }
+    fn release(self) {
+        remove(self);
+    }
 }
 
 pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
@@ -151,21 +159,30 @@ pub fn batch_into<T: ShapeInstance>(instances: &[T], range: Range<u32>, batches:
 }
 
 pub(crate) fn contains(id: Id<MeshResource>) -> bool {
-    MESHES.get().is_some_and(|meshes| meshes.read().unwrap().get(id).is_some())
+    MESHES
+        .get()
+        .is_some_and(|meshes| meshes.read().unwrap().get(id).is_some())
 }
 
-pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgpu::RenderPass<'_>) {
+pub fn draw<T: ShapeInstance>(
+    instances: &mut [T],
+    batch: &Batch,
+    pass: &mut wgpu::RenderPass<'_>,
+) -> Result<(), crate::backend::instances::InstanceError> {
+    if batch.range.start > batch.range.end || batch.range.end as usize > instances.len() {
+        return Err(crate::backend::instances::InstanceError::InvalidRange);
+    }
     if batch.range.is_empty() {
-        return;
+        return Ok(());
     }
     let Some(meshes) = MESHES.get() else {
         tracing::error!("No meshes registered");
-        return;
+        return Err(crate::backend::instances::InstanceError::MissingMesh);
     };
     let meshes = meshes.read().unwrap();
     let Some(mesh) = meshes.get(batch.mesh) else {
         tracing::error!("Unknown mesh {:?}", batch.mesh);
-        return;
+        return Err(crate::backend::instances::InstanceError::MissingMesh);
     };
     let (vertices, vertex_range) = mesh.vertices.raw_region();
     let (indices, index_range) = mesh.indices.raw_region();
@@ -178,16 +195,22 @@ pub fn draw<T: ShapeInstance>(instances: &mut [T], batch: &Batch, pass: &mut wgp
         let render_instances = instances[range.start as usize..range.end as usize]
             .iter()
             .map(ShapeInstance::render_instance);
-        let group = cache::prepare_render_instances(render_instances, range);
+        let group = cache::prepare_render_instances(render_instances, range)?;
         pass.set_bind_group(0, &group, &[]);
         crate::backend::metrics::draw();
         pass.draw_indexed(0..mesh.index_count, 0, 0..instance_count);
     }
+    Ok(())
 }
 
-pub fn draw_all<T: ShapeInstance>(instances: &mut [T], pass: &mut wgpu::RenderPass<'_>) {
-    let end = u32::try_from(instances.len()).expect("Too many shape instances");
+pub fn draw_all<T: ShapeInstance>(
+    instances: &mut [T],
+    pass: &mut wgpu::RenderPass<'_>,
+) -> Result<(), crate::backend::instances::InstanceError> {
+    let end = u32::try_from(instances.len())
+        .map_err(|_| crate::backend::instances::InstanceError::BatchTooLarge)?;
     for batch in batch(instances, 0..end) {
-        draw(instances, &batch, pass);
+        draw(instances, &batch, pass)?;
     }
+    Ok(())
 }

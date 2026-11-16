@@ -1,68 +1,76 @@
-use new_collection::Id;
-
 use super::{Batch, Sprite, SpriteInstance};
-use crate::backend::{self, context, texture::TextureResource};
-use crate::backend::instances::cache;
+use crate::backend::{
+    self, context,
+    instances::{InstanceError, cache},
+    texture::TextureResource,
+};
+use new_collection::Id;
 
 fn get_bind_group<T: SpriteInstance>(
     texture: Id<TextureResource>,
     inst: &T,
-) -> Option<wgpu::BindGroup> {
-    let storage_owner = context::texture_storage(None);
-    let storage = storage_owner.read().unwrap();
-    let Some(resource) = storage.get(texture) else {
-        tracing::error!("Unknown texture {:?}", texture);
-        return None;
-    };
+) -> Result<wgpu::BindGroup, InstanceError> {
+    let owner = context::texture_storage(None);
+    let storage = owner.read().unwrap();
+    let resource = storage.get(texture).ok_or(InstanceError::MissingTexture)?;
     let resource = match (inst.sprite(), resource) {
-        (Sprite::Separate { .. }, TextureResource::Separate(resource))
-        | (Sprite::Array { .. } | Sprite::Animated { .. }, TextureResource::Array(resource))
-        | (Sprite::Atlas { .. }, TextureResource::Atlas { resource, .. }) => resource,
-        _ => {
-            tracing::error!("Texture resource does not match sprite {:?}", inst.sprite());
-            return None;
+        (Sprite::Separate { .. }, TextureResource::Separate(resource)) => resource,
+        (Sprite::Array { layer, .. }, TextureResource::Array(resource))
+        | (
+            Sprite::Animated {
+                current_layer: layer,
+                ..
+            },
+            TextureResource::Array(resource),
+        ) => {
+            if *layer >= resource.texture.as_raw().depth_or_array_layers() {
+                return Err(InstanceError::InvalidTextureLayer);
+            }
+            resource
         }
+        (Sprite::Atlas { region, .. }, TextureResource::Atlas { resource, regions }) => {
+            regions
+                .get(*region)
+                .ok_or(InstanceError::MissingAtlasRegion)?;
+            resource
+        }
+        _ => return Err(InstanceError::TextureKindMismatch),
     };
-    Some(resource.bind_group.clone())
+    Ok(resource.bind_group.clone())
 }
 
 pub fn draw<T: SpriteInstance>(
     instances: &mut [T],
     batch: &Batch,
     pass: &mut wgpu::RenderPass<'_>,
-) {
-    if batch.range.is_empty() {
-        return;
-    }
-    assert!(
-        batch.range.end as usize <= instances.len(),
-        "Instance range out of bounds"
-    );
-    let inst = &instances[batch.range.start as usize];
-    let Some(texture_bind_group) = get_bind_group(batch.resource, inst) else {
-        return;
+) -> Result<(), InstanceError> {
+    let slice = instances
+        .get(batch.range.start as usize..batch.range.end as usize)
+        .ok_or(InstanceError::InvalidRange)?;
+    let Some(inst) = slice.first() else {
+        return Ok(());
     };
+    let texture_bind_group = get_bind_group(batch.resource, inst)?;
     pass.set_bind_group(2, &texture_bind_group, &[]);
-    
     crate::backend::metrics::batch();
     for range in cache::chunk_ranges(batch.range.clone()) {
-        let instance_count = range.end - range.start;
-        let instance_buffer_group = cache::prepare(instances, range);
-        pass.set_bind_group(0, &instance_buffer_group, &[]);
+        let count = range.end - range.start;
+        let group = cache::prepare(instances, range)?;
+        pass.set_bind_group(0, &group, &[]);
         crate::backend::metrics::draw();
-        pass.draw_indexed(batch.indices.clone(), 0, 0..instance_count);
+        pass.draw_indexed(batch.indices.clone(), 0, 0..count);
     }
+    Ok(())
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(dead_code, reason = "Public drawing API")]
 pub fn draw_all<T: SpriteInstance>(
     instances: &mut [T],
     pass: &mut wgpu::RenderPass<'_>,
-) {
-    let end = instances.len() as u32;
-    let batches = backend::batch(instances, 0..end);
-
-    for batch in batches {
-        draw(instances, &batch, pass);
+) -> Result<(), InstanceError> {
+    let end = u32::try_from(instances.len()).map_err(|_| InstanceError::BatchTooLarge)?;
+    for batch in backend::batch(instances, 0..end) {
+        draw(instances, &batch, pass)?;
     }
+    Ok(())
 }

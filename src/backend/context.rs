@@ -31,47 +31,74 @@ static DEFAULT_CONTEXT: OnceLock<Arc<Context>> = OnceLock::new();
 static CONTEXTS: OnceLock<RwLock<Arena<Arc<Context>>>> = OnceLock::new();
 
 impl Context {
-    fn init(adapter: &wgpu::Adapter) -> Self {
+    fn init(adapter: &wgpu::Adapter) -> Result<Self, InitError> {
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("Main device"),
             required_limits: adapter.limits(),
             ..Default::default()
         }))
-        .expect("Impossible de creer le device");
+        .map_err(InitError::Device)?;
 
         let texture_storage = Arc::new(RwLock::new(TextureStorage::new()));
         let buffer = Arc::new(RwLock::new(BufferArena::new()));
 
-        Context {
+        Ok(Context {
             queue,
             device,
             texture_storage,
             buffer,
-        }
+        })
     }
 }
 
 /// Initializes the backend's default context.
-pub fn init(adapter: &wgpu::Adapter) {
+pub fn init(adapter: &wgpu::Adapter) -> Result<(), InitError> {
+    if DEFAULT_CONTEXT.get().is_some() {
+        return Err(InitError::AlreadyInitialized);
+    }
     DEFAULT_CONTEXT
-        .set(Arc::new(Context::init(adapter)))
-        .expect("Default context already init");
+        .set(Arc::new(Context::init(adapter)?))
+        .map_err(|_| InitError::AlreadyInitialized)
 }
 
 fn contexts() -> &'static RwLock<Arena<Arc<Context>>> {
     CONTEXTS.get_or_init(|| RwLock::new(Arena::new()))
 }
 
-pub fn create(adapter: &wgpu::Adapter) -> ContextId {
-    let new_context = Context::init(adapter);
+pub fn create(adapter: &wgpu::Adapter) -> Result<ContextId, InitError> {
+    let new_context = Context::init(adapter)?;
     let raw = {
         let mut ctxs = contexts().write().unwrap();
         ctxs.insert(Arc::new(new_context))
     };
 
-    ContextId {
+    Ok(ContextId {
         raw,
         uid: next_id(),
+    })
+}
+
+#[derive(Debug)]
+pub enum InitError {
+    Device(wgpu::RequestDeviceError),
+    AlreadyInitialized,
+}
+
+impl std::fmt::Display for InitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Device(error) => write!(f, "Device creation failed: {error}"),
+            Self::AlreadyInitialized => f.write_str("Default context already initialized"),
+        }
+    }
+}
+
+impl std::error::Error for InitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Device(error) => Some(error),
+            _ => None,
+        }
     }
 }
 
@@ -80,7 +107,10 @@ pub fn context(id: Option<ContextId>) -> Arc<Context> {
         None => Arc::clone(DEFAULT_CONTEXT.get().expect("Default context is not init")),
         Some(id) => {
             let ctxs = contexts().read().unwrap();
-            Arc::clone(ctxs.get(id.raw).expect("Invalid ContextId: context missing or removed"))
+            Arc::clone(
+                ctxs.get(id.raw)
+                    .expect("Invalid ContextId: context missing or removed"),
+            )
         }
     }
 }

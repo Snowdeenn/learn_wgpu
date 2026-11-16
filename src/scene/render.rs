@@ -63,18 +63,20 @@ crate::define_render_operation! {
         // quel que soit le mode choisi pour les objets de la scène.
         backend::bind(&*mesh, pass);
 
+        let mut draw_result = Ok(());
         particle::for_each_prepared_effect(|instances| {
-            shape::draw_all(instances.shape(), pass);
+            if draw_result.is_ok() {
+                draw_result = shape::draw_all(instances.shape(), pass);
+            }
         });
-
+        draw_result?;
+        let mut draw_result = Ok(());
         particle::for_each_prepared_effect(|instances| {
-            draw_sprites(
-                &texture,
-                &texture_array,
-                pass,
-                instances.sprite(),
-            );
+            if draw_result.is_ok() {
+                draw_result = draw_sprites(&texture, &texture_array, pass, instances.sprite());
+            }
         });
+        draw_result?;
         Ok(())
     }
 }
@@ -107,10 +109,7 @@ pub fn prepare_text(
     )
 }
 
-pub fn render(
-    resources: &Resources,
-    frame: &mut Frame<'_>,
-) -> Result<(), SceneError> {
+pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), SceneError> {
     // Prepare before encoding so the two timings do not overlap.
     let start = Instant::now();
     particle::prepare_registered_effects();
@@ -146,7 +145,7 @@ fn draw_sprites<T: SpriteInstance>(
     texture_array: &TextureArrayPipelineContext,
     pass: &mut wgpu::RenderPass<'_>,
     instances: &mut [T],
-) {
+) -> Result<(), backend::instances::InstanceError> {
     let end = instances.len() as u32;
 
     for batch in backend::batch(instances, 0..end) {
@@ -159,6 +158,7 @@ fn draw_sprites<T: SpriteInstance>(
             }
         }
 
-        backend::draw(instances, &batch, pass);
+        backend::draw(instances, &batch, pass)?;
     }
+    Ok(())
 }

@@ -1,6 +1,13 @@
 use super::App;
 use crate::{
-    api::Velum, backend::renderer::Renderer, camera::Camera2DController, debug::DebugManager, scene::{self, resources::{Fps, FrameTimings}},
+    api::Velum,
+    backend::renderer::Renderer,
+    camera::Camera2DController,
+    debug::DebugManager,
+    scene::{
+        self,
+        resources::{Fps, FrameTimings},
+    },
 };
 use std::sync::Arc;
 use winit::{
@@ -26,7 +33,14 @@ impl ApplicationHandler for App {
                 .create_window(attributes)
                 .expect("Impossible de creer la fenetre"),
         );
-        let renderer = Renderer::new(window.clone());
+        let renderer = match Renderer::new(window.clone()) {
+            Ok(renderer) => renderer,
+            Err(error) => {
+                tracing::error!("Renderer initialization failed: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
         let debug = DebugManager::init(&window, renderer.conf.format);
         let mut velum = Velum::new();
 
@@ -115,7 +129,10 @@ impl ApplicationHandler for App {
                 let acquire_elapsed = acquire_start.elapsed();
                 match acquired {
                     Ok(Some(mut frame)) => {
-                        self.resources.write_resource::<FrameTimings>().surface_acquire.record(acquire_elapsed);
+                        self.resources
+                            .write_resource::<FrameTimings>()
+                            .surface_acquire
+                            .record(acquire_elapsed);
                         crate::backend::metrics::reset();
                         debug.begin_frame(window);
                         scene::debug_panel::run(debug, &self.resources);
@@ -139,7 +156,10 @@ impl ApplicationHandler for App {
                         let (encoder, view) = frame.render_parts();
                         debug.flush_into(window, encoder, view, size_in_pixels);
 
-                        let measure_wait = self.resources.read_resource::<FrameTimings>().measure_gpu_wait;
+                        let measure_wait = self
+                            .resources
+                            .read_resource::<FrameTimings>()
+                            .measure_gpu_wait;
                         let wait = frame.finish(measure_wait);
                         let (slots, reserved) = crate::backend::instances::memory_stats();
                         let mut timings = self.resources.write_resource::<FrameTimings>();

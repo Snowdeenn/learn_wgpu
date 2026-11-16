@@ -10,7 +10,10 @@ mod tests;
 pub use crate::backend::target::PassTarget;
 pub use builder::*;
 pub use list::{PassList, execute};
-#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
+#[allow(
+    unused_imports,
+    reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
+)]
 pub use operation::{ComputeOperation, RenderOperation, RenderSequence};
 
 use crate::backend::{binding_set::BindingSetError, target::RenderTargetId, text::TextError};
@@ -23,7 +26,10 @@ pub enum PassContext {
         depth: Option<RenderTargetId>,
         operation: Box<dyn RenderOperation>,
     },
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     Compute {
         operation: Box<dyn ComputeOperation>,
     },
@@ -43,7 +49,10 @@ pub fn render(
     }
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn compute(operation: impl ComputeOperation + 'static) -> PassContext {
     PassContext::Compute {
         operation: Box::new(operation),
@@ -53,6 +62,7 @@ pub fn compute(operation: impl ComputeOperation + 'static) -> PassContext {
 #[derive(Debug)]
 pub enum PassError {
     Draw(DrawError),
+    Instances(crate::backend::instances::InstanceError),
     InvalidDepthTarget(RenderTargetId),
     MissingTarget(RenderTargetId),
     InvalidColorTarget(RenderTargetId),
@@ -68,6 +78,7 @@ impl std::fmt::Display for PassError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Draw(error) => error.fmt(f),
+            Self::Instances(error) => error.fmt(f),
             Self::InvalidDepthTarget(id) => write!(f, "Invalid or mismatched depth target: {id}"),
             Self::MissingTarget(id) => write!(f, "Unknown pass target: {id}"),
             Self::InvalidColorTarget(id) => {
@@ -84,13 +95,16 @@ impl std::fmt::Display for PassError {
 }
 
 impl From<RenderDataError> for PassError {
-    fn from(error: RenderDataError) -> Self { Self::Data(error) }
+    fn from(error: RenderDataError) -> Self {
+        Self::Data(error)
+    }
 }
 
 impl std::error::Error for PassError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Draw(error) => Some(error),
+            Self::Instances(error) => Some(error),
             Self::Data(error) => Some(error),
             Self::BindingSet(error) => Some(error),
             Self::Text(error) => Some(error),
@@ -100,7 +114,9 @@ impl std::error::Error for PassError {
 }
 
 impl From<DrawError> for PassError {
-    fn from(error: DrawError) -> Self { Self::Draw(error) }
+    fn from(error: DrawError) -> Self {
+        Self::Draw(error)
+    }
 }
 
 impl From<BindingSetError> for PassError {
@@ -117,7 +133,15 @@ impl From<TextError> for PassError {
 
 impl PassContext {
     pub fn with_depth(mut self, target: RenderTargetId) -> Self {
-        if let Self::Render { depth, .. } = &mut self { *depth = Some(target); }
+        if let Self::Render { depth, .. } = &mut self {
+            *depth = Some(target);
+        }
         self
+    }
+}
+
+impl From<crate::backend::instances::InstanceError> for PassError {
+    fn from(error: crate::backend::instances::InstanceError) -> Self {
+        Self::Instances(error)
     }
 }
