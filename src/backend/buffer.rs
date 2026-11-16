@@ -1,7 +1,7 @@
 #![allow(unused)]
-use crate::core::{OwnedResource, ResourceHandle};
 use super::bind_group::Bindable;
 use super::context;
+use crate::core::{OwnedResource, ResourceHandle};
 
 use new_collection::{Arena, Id};
 use wgpu::util::DeviceExt;
@@ -78,11 +78,15 @@ pub struct Buffer<T, K> {
 impl<T, K> Copy for Buffer<T, K> {}
 
 impl<T, K> Clone for Buffer<T, K> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T: bytemuck::Pod + 'static, K: BufferKind + 'static> ResourceHandle for Buffer<T, K> {
-    fn release(self) { delete_buffer(self); }
+    fn release(self) {
+        delete_buffer(self);
+    }
 }
 
 pub(super) struct ResolvedBuffer<K> {
@@ -92,7 +96,14 @@ pub(super) struct ResolvedBuffer<K> {
     _marker: std::marker::PhantomData<K>,
 }
 
-crate::create_marker!(StorageRead, StorageReadWrite, StorageVertex, Uniform, Index, Vertex);
+crate::create_marker!(
+    StorageRead,
+    StorageReadWrite,
+    StorageVertex,
+    Uniform,
+    Index,
+    Vertex
+);
 
 pub trait BufferKind {
     const USAGE: wgpu::BufferUsages;
@@ -130,8 +141,7 @@ impl BufferKind for StorageRead {
 }
 
 impl BufferKind for StorageVertex {
-    const USAGE: wgpu::BufferUsages =
-        wgpu::BufferUsages::STORAGE.union(wgpu::BufferUsages::VERTEX);
+    const USAGE: wgpu::BufferUsages = wgpu::BufferUsages::STORAGE.union(wgpu::BufferUsages::VERTEX);
 }
 
 impl BufferKind for Uniform {
@@ -198,7 +208,9 @@ impl<K: BindableBufferKind> Bindable for ResolvedBuffer<K> {
     }
 }
 
-pub fn storage<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, StorageRead>>, AllocError> {
+pub fn storage<T: bytemuck::Pod>(
+    capacity: u64,
+) -> Result<OwnedResource<Buffer<T, StorageRead>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
@@ -223,21 +235,27 @@ pub fn storage_rw<T: bytemuck::Pod>(
         .allocate::<T, StorageReadWrite>(capacity)
 }
 
-pub fn uniform<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, Uniform>>, AllocError> {
+pub fn uniform<T: bytemuck::Pod>(
+    capacity: u64,
+) -> Result<OwnedResource<Buffer<T, Uniform>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
         .allocate::<T, Uniform>(capacity)
 }
 
-pub fn vertex<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, Vertex>>, AllocError> {
+pub fn vertex<T: bytemuck::Pod>(
+    capacity: u64,
+) -> Result<OwnedResource<Buffer<T, Vertex>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
         .allocate::<T, Vertex>(capacity)
 }
 
-pub fn index<T: bytemuck::Pod>(capacity: u64) -> Result<OwnedResource<Buffer<T, Index>>, AllocError> {
+pub fn index<T: bytemuck::Pod>(
+    capacity: u64,
+) -> Result<OwnedResource<Buffer<T, Index>>, AllocError> {
     context::buffer()
         .write()
         .unwrap()
@@ -283,6 +301,7 @@ pub enum AllocError {
     AllocationTooLarge { requested: u64, page_size: u64 },
     AlignmentOverflow { offset: u64, alignment: u64 },
     OffsetOverflow { offset: u64, size: u64 },
+    InvalidBufferSize { size: u64 },
 }
 
 impl std::fmt::Display for AllocError {
@@ -303,6 +322,7 @@ impl std::fmt::Display for AllocError {
                 f,
                 "Débordement lors du calcul de fin d'allocation pour l'offset {offset} et la taille {size}"
             ),
+            Self::InvalidBufferSize { size } => write!(f, "Capacité donnée invalide {size}"),
         }
     }
 }
@@ -327,7 +347,10 @@ impl BufferArena {
         }
     }
 
-    pub fn allocate<T, K>(&mut self, capacity: u64) -> Result<OwnedResource<Buffer<T, K>>, AllocError>
+    pub fn allocate<T, K>(
+        &mut self,
+        capacity: u64,
+    ) -> Result<OwnedResource<Buffer<T, K>>, AllocError>
     where
         T: bytemuck::Pod,
         K: BufferKind + 'static,
@@ -337,8 +360,12 @@ impl BufferArena {
         if size > Self::PAGE_SIZE {
             return Err(AllocError::AllocationTooLarge {
                 requested: size,
-                page_size: Self::PAGE_SIZE,
+                page_size: Self::PAGE_SIZE, 
             });
+        }
+
+        if size == 0 {
+            return Err(AllocError::InvalidBufferSize { size });
         }
 
         let limits = context::device().limits();
@@ -409,7 +436,9 @@ impl BufferArena {
 
     pub fn deallocate<T, K>(&mut self, buffer: Buffer<T, K>) {
         // TODO: Utiliser pleinement les options (améliorer la gestion d'erreur)
-        let Some(alloc) = self.allocations.get(buffer.alloc_id) else { return; };
+        let Some(alloc) = self.allocations.get(buffer.alloc_id) else {
+            return;
+        };
         let page = self.pages.get_mut(alloc.page).unwrap();
         page.allocations -= 1;
 
