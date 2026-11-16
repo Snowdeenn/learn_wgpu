@@ -66,7 +66,7 @@ pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::Ima
         })
         .build();
 
-    context::queue().write_texture(
+    context::queue(None).write_texture(
         wgpu::TexelCopyTextureInfoBase {
             texture: &dst_tex,
             mip_level: 0,
@@ -108,7 +108,7 @@ pub fn load_texture_array(
     }
 
     let layers = u32::try_from(images.len())?;
-    let limits = context::device().limits();
+    let limits = context::device(None).limits();
 
     if layers > limits.max_texture_array_layers {
         return Err("Nombre de couches supérieur à la limite GPU".into());
@@ -128,7 +128,7 @@ pub fn load_texture_array(
         .build();
 
     for (layer, image) in images.iter().enumerate() {
-        context::queue().write_texture(
+        context::queue(None).write_texture(
             wgpu::TexelCopyTextureInfoBase {
                 texture: &texture,
                 mip_level: 0,
@@ -174,7 +174,8 @@ pub fn register_texture(raw: wgpu::Texture) -> (OwnedResource<Id<TextureResource
         bind_group: group,
     });
     let id = {
-        let mut storage = context::texture_storage().write().unwrap();
+        let storage_owner = context::texture_storage(None);
+        let mut storage = storage_owner.write().unwrap();
         storage.insert(resource)
     };
 
@@ -201,7 +202,8 @@ pub fn register_texture_array(
     };
 
     let id = {
-        let mut storage = context::texture_storage().write().unwrap();
+        let storage_owner = context::texture_storage(None);
+        let mut storage = storage_owner.write().unwrap();
         storage.insert(TextureResource::Array(resource))
     };
 
@@ -235,7 +237,8 @@ pub fn register_atlas(
         regions: atlas_regions,
     };
     let id = {
-        let mut storage = context::texture_storage().write().unwrap();
+        let storage_owner = context::texture_storage(None);
+        let mut storage = storage_owner.write().unwrap();
         storage.insert(resource)
     };
 

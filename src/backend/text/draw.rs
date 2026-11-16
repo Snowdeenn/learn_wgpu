@@ -181,7 +181,7 @@ pub fn prepare<T: TextInstance>(instances: &[T], view: &TextView<'_>) -> Result<
         });
     }
     viewport.update(
-        gpu::queue(),
+        &gpu::queue(None),
         glyphon::Resolution {
             width: view.resolution[0],
             height: view.resolution[1],
@@ -189,8 +189,8 @@ pub fn prepare<T: TextInstance>(instances: &[T], view: &TextView<'_>) -> Result<
     );
     renderer
         .prepare(
-            gpu::device(),
-            gpu::queue(),
+            &gpu::device(None),
+            &gpu::queue(None),
             font_system,
             atlas,
             viewport,

@@ -77,7 +77,7 @@ macro_rules! pipeline_context {
 
         let layouts = [$(Some(&$layout)),*];
 
-        let pipeline_layout = $crate::backend::context::device()
+        let pipeline_layout = $crate::backend::context::device(None)
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
                 bind_group_layouts: &layouts,

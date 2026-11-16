@@ -8,7 +8,8 @@ fn get_bind_group<T: SpriteInstance>(
     texture: Id<TextureResource>,
     inst: &T,
 ) -> Option<wgpu::BindGroup> {
-    let storage = context::texture_storage().read().unwrap();
+    let storage_owner = context::texture_storage(None);
+    let storage = storage_owner.read().unwrap();
     let Some(resource) = storage.get(texture) else {
         tracing::error!("Unknown texture {:?}", texture);
         return None;

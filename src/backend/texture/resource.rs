@@ -5,7 +5,8 @@ use super::Texture;
 
 /// Removes a texture and its atlas regions, if any.
 pub fn remove(id: Id<TextureResource>) -> bool {
-    let mut textures = context::texture_storage().write().unwrap();
+    let storage_owner = context::texture_storage(None);
+    let mut textures = storage_owner.write().unwrap();
     if textures.get(id).is_none() { return false; }
     textures.remove(id).is_some()
 }

@@ -48,7 +48,7 @@ impl<'a> BufferBuilder<'a> {
     }
 
     pub fn build(self) -> wgpu::Buffer {
-        let device = context::device();
+        let device = context::device(None);
 
         match self.data {
             Some(data) => device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -165,7 +165,8 @@ impl<T, K: BufferKind> Buffer<T, K> {
     }
 
     pub fn raw_region(&self) -> (wgpu::Buffer, std::ops::Range<u64>) {
-        let arena = context::buffer().read().unwrap();
+        let storage_owner = context::buffer(None);
+        let arena = storage_owner.read().unwrap();
         let alloc = arena.allocations.get(self.alloc_id).unwrap();
         let buffer = arena.pages[alloc.page].buffer.clone();
         (buffer, alloc.offset..alloc.offset + alloc.size)
@@ -174,7 +175,8 @@ impl<T, K: BufferKind> Buffer<T, K> {
 
 impl<T, K: BindableBufferKind> Buffer<T, K> {
     pub fn resolve_binding(&self) -> impl Bindable + use<T, K> {
-        let arena = context::buffer().read().unwrap();
+        let storage_owner = context::buffer(None);
+        let arena = storage_owner.read().unwrap();
         let allocation = arena.allocations.get(self.alloc_id).unwrap();
         let page = &arena.pages[allocation.page];
 
@@ -211,7 +213,7 @@ impl<K: BindableBufferKind> Bindable for ResolvedBuffer<K> {
 pub fn storage<T: bytemuck::Pod>(
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, StorageRead>>, AllocError> {
-    context::buffer()
+    context::buffer(None)
         .write()
         .unwrap()
         .allocate::<T, StorageRead>(capacity)
@@ -220,7 +222,7 @@ pub fn storage<T: bytemuck::Pod>(
 pub fn storage_vertex<T: bytemuck::Pod>(
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, StorageVertex>>, AllocError> {
-    context::buffer()
+    context::buffer(None)
         .write()
         .unwrap()
         .allocate::<T, StorageVertex>(capacity)
@@ -229,7 +231,7 @@ pub fn storage_vertex<T: bytemuck::Pod>(
 pub fn storage_rw<T: bytemuck::Pod>(
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, StorageReadWrite>>, AllocError> {
-    context::buffer()
+    context::buffer(None)
         .write()
         .unwrap()
         .allocate::<T, StorageReadWrite>(capacity)
@@ -238,7 +240,7 @@ pub fn storage_rw<T: bytemuck::Pod>(
 pub fn uniform<T: bytemuck::Pod>(
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, Uniform>>, AllocError> {
-    context::buffer()
+    context::buffer(None)
         .write()
         .unwrap()
         .allocate::<T, Uniform>(capacity)
@@ -247,7 +249,7 @@ pub fn uniform<T: bytemuck::Pod>(
 pub fn vertex<T: bytemuck::Pod>(
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, Vertex>>, AllocError> {
-    context::buffer()
+    context::buffer(None)
         .write()
         .unwrap()
         .allocate::<T, Vertex>(capacity)
@@ -256,7 +258,7 @@ pub fn vertex<T: bytemuck::Pod>(
 pub fn index<T: bytemuck::Pod>(
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, Index>>, AllocError> {
-    context::buffer()
+    context::buffer(None)
         .write()
         .unwrap()
         .allocate::<T, Index>(capacity)
@@ -267,7 +269,7 @@ where
     T: bytemuck::Pod,
     K: BufferKind + 'static,
 {
-    context::buffer()
+    context::buffer(None)
         .read()
         .unwrap()
         .write(buffer, offset, data);
@@ -278,7 +280,7 @@ where
     T: bytemuck::Pod,
     K: BufferKind + 'static,
 {
-    context::buffer().write().unwrap().deallocate(buffer);
+    context::buffer(None).write().unwrap().deallocate(buffer);
 }
 
 #[derive(Debug)]
@@ -368,7 +370,7 @@ impl BufferArena {
             return Err(AllocError::InvalidBufferSize { size });
         }
 
-        let limits = context::device().limits();
+        let limits = context::device(None).limits();
         let alignment = match K::USAGE {
             usage if usage.contains(wgpu::BufferUsages::UNIFORM) => {
                 limits.min_uniform_buffer_offset_alignment
@@ -435,7 +437,7 @@ impl BufferArena {
     }
 
     pub fn deallocate<T, K>(&mut self, buffer: Buffer<T, K>) {
-        // TODO: Utiliser pleinement les options (améliorer la gestion d'erreur)
+        // TODO: Utiliser pleinement les options (am?liorer la gestion d'erreur)
         let Some(alloc) = self.allocations.get(buffer.alloc_id) else {
             return;
         };
@@ -491,7 +493,7 @@ impl BufferArena {
             );
         }
 
-        context::queue().write_buffer(&page.buffer, total_offset, bytemuck::cast_slice(data));
+        context::queue(None).write_buffer(&page.buffer, total_offset, bytemuck::cast_slice(data));
     }
 }
 

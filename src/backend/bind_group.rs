@@ -195,7 +195,7 @@ impl<'a> BindGroupLayoutBuilder<'a> {
             label: self.label,
             entries: &entries,
         };
-        context::device().create_bind_group_layout(&descriptor)
+        context::device(None).create_bind_group_layout(&descriptor)
     }
 }
 
@@ -270,7 +270,7 @@ impl<'a> BindGroupBuilder<'a> {
 
     /// Build the bind group with the specified resources.
     pub fn build(self, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-        let device = context::device();
+        let device = context::device(None);
         let mut entries = Vec::with_capacity(self.resources.len());
         for (i, resource) in self.resources.into_iter().enumerate() {
             let binding = wgpu::BindGroupEntry {
@@ -315,7 +315,7 @@ macro_rules! bind_group_layout {
             }
         )*
 
-        $crate::backend::context::device()
+        $crate::backend::context::device(None)
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: None,
                 entries: &entries,
@@ -350,13 +350,13 @@ macro_rules! bind_group {
             });
         )*
 
-        let layout = context::device()
+        let layout = context::device(None)
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: None,
                 entries: &layout_entries,
             });
 
-        let group = context::device()
+        let group = context::device(None)
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &layout,

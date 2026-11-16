@@ -21,7 +21,7 @@ impl DebugManager {
             None,
         );
         let renderer = egui_wgpu::Renderer::new(
-            context::device(),
+            &context::device(None),
             format,
             egui_wgpu::RendererOptions {
                 msaa_samples: 1,
@@ -91,7 +91,7 @@ impl DebugManager {
         surface_view: &wgpu::TextureView,
         size_in_pixels: [u32; 2],
     ) {
-        let context = context::context();
+        let context = context::context(None);
 
         let mut full_output = self.end_frame();
         self.state

@@ -43,7 +43,7 @@ impl Renderer {
             .expect("Aucune configuration de surface compatible");
         conf.present_mode = wgpu::PresentMode::Fifo;
         conf.format = wgpu::TextureFormat::Bgra8UnormSrgb;
-        surface.configure(context::device(), &conf);
+        surface.configure(&context::device(None), &conf);
 
         super::text::init(conf.format).expect("Impossible d'initialiser le contexte texte");
 
@@ -56,12 +56,12 @@ impl Renderer {
         }
         self.conf.width = size.width;
         self.conf.height = size.height;
-        self.surface.configure(context::device(), &self.conf);
+        self.surface.configure(&context::device(None), &self.conf);
         super::target::resize_window_targets([size.width, size.height]);
     }
 
     pub fn begin_frame<'a>(&'a self, window: &'a Window) -> Result<Option<Frame<'a>>, &'a str> {
-        let encoder = context::device().create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        let encoder = context::device(None).create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Main encoder"),
         });
 
@@ -73,11 +73,11 @@ impl Renderer {
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
                 // Libérer la texture acquise avant de reconfigurer la surface.
                 drop(frame);
-                surface.configure(context::device(), conf);
+                surface.configure(&context::device(None), conf);
                 return Ok(None);
             }
             wgpu::CurrentSurfaceTexture::Outdated => {
-                surface.configure(context::device(), conf);
+                surface.configure(&context::device(None), conf);
                 return Ok(None);
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
@@ -151,10 +151,10 @@ impl<'a> Frame<'a> {
     }
 
     pub fn finish(self, measure_gpu_wait: bool) -> Option<std::time::Duration> {
-        let submission = context::queue().submit([self.encoder.finish()]);
+        let submission = context::queue(None).submit([self.encoder.finish()]);
         let gpu_wait = measure_gpu_wait.then(|| {
             let start = std::time::Instant::now();
-            context::device().poll(wgpu::PollType::Wait {
+            context::device(None).poll(wgpu::PollType::Wait {
                 submission_index: Some(submission),
                 timeout: Some(std::time::Duration::from_secs(10)),
             }).map(|_| start.elapsed())
@@ -162,7 +162,7 @@ impl<'a> Frame<'a> {
         super::instances::submitted();
         super::text::submitted();
         self.window.pre_present_notify();
-        context::queue().present(self.texture_surface);
+        context::queue(None).present(self.texture_surface);
         gpu_wait
     }
 }

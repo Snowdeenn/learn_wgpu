@@ -126,7 +126,7 @@ impl<'a> SamplerBuilder<'a> {
 
     /// Calls `device.create_sampler(&self.descriptor)` internally and consume the Builder.
     pub fn build(self) -> wgpu::Sampler {
-        context::device().create_sampler(&self.descriptor)
+        context::device(None).create_sampler(&self.descriptor)
     }
 }
 
@@ -195,7 +195,7 @@ impl SamplingKind for Comparison {
 
 fn create<K: SamplingKind>(desc: wgpu::SamplerDescriptor<'_>) -> Sampler<K> {
     Sampler {
-        raw: context::device().create_sampler(&desc),
+        raw: context::device(None).create_sampler(&desc),
         _phantom: std::marker::PhantomData,
     }
 }

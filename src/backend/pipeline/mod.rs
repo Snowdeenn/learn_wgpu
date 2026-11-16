@@ -501,13 +501,13 @@ impl<'a> RenderPipelineBuilder<'a> {
     /// - A rasterization state field was specified but no fragment shader was given.
     /// - A color state field was specified but no fragment shader was given.
     pub fn build(self) -> wgpu::RenderPipeline {
-        let device = gpu_context::device();
+        let device = gpu_context::device(None);
         match self.layout {
             Layout::Descriptor(ref desc) => {
                 let layout = device.create_pipeline_layout(desc);
-                build(self, &layout, device)
+                build(self, &layout, &device)
             }
-            Layout::Created(layout) => build(self, layout, device),
+            Layout::Created(layout) => build(self, layout, &device),
         }
     }
 }

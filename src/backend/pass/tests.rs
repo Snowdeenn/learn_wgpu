@@ -75,7 +75,7 @@ fn read_pixels(buffer: &wgpu::Buffer) -> Vec<u8> {
     buffer.map_async(wgpu::MapMode::Read, .., move |result| {
         send.send(result).unwrap()
     });
-    context::device()
+    context::device(None)
         .poll(wgpu::PollType::Wait {
             submission_index: None,
             timeout: Some(std::time::Duration::from_secs(10)),
@@ -98,7 +98,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     crate::backend::phase::gpu_regression();
     owned_resource_lifecycle();
     depth_ordering_and_resize();
-    let device = context::device();
+    let device = context::device(None);
 
     let source = target::register(descriptor(TargetSize::Window {
         width: 4,
@@ -306,7 +306,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
                 depth_or_array_layers: 1,
             },
         );
-        context::queue().submit([encoder.finish()]);
+        context::queue(None).submit([encoder.finish()]);
         let pixels = read_pixels(&staging);
         for row in 0..8 {
             for column in 0..8 {
@@ -385,7 +385,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
 
     let mut encoder = device.create_command_encoder(&Default::default());
     execute(&mut [], &mut encoder, surface.texture().view(), &mut frame).unwrap();
-    context::queue().submit([encoder.finish()]);
+    context::queue(None).submit([encoder.finish()]);
 
     assert!(target::remove(source));
     assert!(!target::remove(source));
@@ -438,7 +438,7 @@ fn owned_resource_lifecycle() {
     drop(other);
     assert!(target::get(id).is_none());
 
-    let raw = context::device().create_texture(&wgpu::TextureDescriptor {
+    let raw = context::device(None).create_texture(&wgpu::TextureDescriptor {
         label: Some("Owned texture test"),
         size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
         mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
@@ -448,9 +448,9 @@ fn owned_resource_lifecycle() {
     });
     let (owner, _) = crate::backend::texture::register_texture(raw);
     let texture_id = owner.id();
-    assert!(context::texture_storage().read().unwrap().get(texture_id).is_some());
+    assert!(context::texture_storage(None).read().unwrap().get(texture_id).is_some());
     drop(owner);
-    assert!(context::texture_storage().read().unwrap().get(texture_id).is_none());
+    assert!(context::texture_storage(None).read().unwrap().get(texture_id).is_none());
 
     let (mesh, _) = crate::geometry::primitives::create_rect_vertices();
     let owner = crate::backend::shape::register(mesh);
@@ -474,7 +474,7 @@ fn depth_ordering_and_resize() {
             Ok(())
         }
     }
-    let device = context::device();
+    let device = context::device(None);
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Depth regression"),
         source: wgpu::ShaderSource::Wgsl(r#"
@@ -551,7 +551,7 @@ fn depth_ordering_and_resize() {
                 depth_or_array_layers: 1,
             },
         );
-        context::queue().submit([encoder.finish()]);
+        context::queue(None).submit([encoder.finish()]);
         let pixels = read_pixels(&staging);
         for y in 0..size as usize {
             for x in 0..size as usize {

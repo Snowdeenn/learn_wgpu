@@ -39,7 +39,7 @@ pub(super) fn reset_frame() {
 
 impl TextContext {
     fn init(format: wgpu::TextureFormat) -> Self {
-        let ctx = context::context();
+        let ctx = context::context(None);
         let fs = glyphon::FontSystem::new();
         let sc = glyphon::SwashCache::new();
         let cache = glyphon::Cache::new(&ctx.device);

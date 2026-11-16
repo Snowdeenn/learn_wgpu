@@ -145,7 +145,7 @@ pub(crate) fn gpu_regression() {
     use crate::backend::{buffer, metrics, pipeline, target, texture};
     use crate::geometry::mesh::{Mesh, Vertex};
     crate::define_pipeline_context!(PhaseGpu);
-    let device = context::device();
+    let device = context::device(None);
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Phase regression"),
         source: wgpu::ShaderSource::Wgsl(r#"
@@ -195,7 +195,7 @@ pub(crate) fn gpu_regression() {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        context::queue().write_texture(
+        context::queue(None).write_texture(
             texture.as_image_copy(),
             &color,
             wgpu::TexelCopyBufferLayout {
@@ -283,7 +283,7 @@ pub(crate) fn gpu_regression() {
                 depth_or_array_layers: 1,
             },
         );
-        context::queue().submit([encoder.finish()]);
+        context::queue(None).submit([encoder.finish()]);
         crate::backend::instances::submitted();
         let (tx, rx) = std::sync::mpsc::channel();
         staging.map_async(wgpu::MapMode::Read, .., move |r| tx.send(r).unwrap());

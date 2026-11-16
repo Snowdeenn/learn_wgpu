@@ -7,5 +7,5 @@ pub fn load_shader(label: Option<&str>, path: &str) -> Result<wgpu::ShaderModule
         source: wgpu::ShaderSource::Wgsl(source.into()),
     };
 
-    Ok(context::device().create_shader_module(desc))
+    Ok(context::device(None).create_shader_module(desc))
 }

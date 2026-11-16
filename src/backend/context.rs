@@ -27,7 +27,7 @@ pub fn next_id() -> u64 {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }
 
-static DEFAULT_CONTEXT: OnceLock<Context> = OnceLock::new();
+static DEFAULT_CONTEXT: OnceLock<Arc<Context>> = OnceLock::new();
 static CONTEXTS: OnceLock<RwLock<Arena<Arc<Context>>>> = OnceLock::new();
 
 impl Context {
@@ -54,7 +54,7 @@ impl Context {
 /// Initializes the backend's default context.
 pub fn init(adapter: &wgpu::Adapter) {
     DEFAULT_CONTEXT
-        .set(Context::init(adapter))
+        .set(Arc::new(Context::init(adapter)))
         .expect("Default context already init");
 }
 
@@ -75,48 +75,28 @@ pub fn create(adapter: &wgpu::Adapter) -> ContextId {
     }
 }
 
-pub fn context_for(id: ContextId) -> Arc<Context> {
-    let context = {
-        let ctxs = contexts().read().unwrap();
-        ctxs.get(id.raw)
-            .expect("ContextId invalide : contexte absent ou supprimé")
-            .clone()
-    };
-    context
+pub fn context(id: Option<ContextId>) -> Arc<Context> {
+    match id {
+        None => Arc::clone(DEFAULT_CONTEXT.get().expect("Default context is not init")),
+        Some(id) => {
+            let ctxs = contexts().read().unwrap();
+            Arc::clone(ctxs.get(id.raw).expect("Invalid ContextId: context missing or removed"))
+        }
+    }
 }
 
-pub fn device_for(id: ContextId) -> wgpu::Device {
-    context_for(id).device.clone()
+pub fn device(id: Option<ContextId>) -> wgpu::Device {
+    context(id).device.clone()
 }
 
-pub fn queue_for(id: ContextId) -> wgpu::Queue {
-    context_for(id).queue.clone()
+pub fn queue(id: Option<ContextId>) -> wgpu::Queue {
+    context(id).queue.clone()
 }
 
-pub fn texture_storage_for(id: ContextId) -> Arc<RwLock<TextureStorage>> {
-    Arc::clone(&context_for(id).texture_storage)
+pub fn texture_storage(id: Option<ContextId>) -> Arc<RwLock<TextureStorage>> {
+    Arc::clone(&context(id).texture_storage)
 }
 
-pub(super) fn buffer_for(id: ContextId) -> Arc<RwLock<BufferArena>> {
-    Arc::clone(&context_for(id).buffer)
-}
-
-pub fn context() -> &'static Context {
-    DEFAULT_CONTEXT.get().expect("Default context is not init")
-}
-
-pub fn device() -> &'static wgpu::Device {
-    &context().device
-}
-
-pub fn queue() -> &'static wgpu::Queue {
-    &context().queue
-}
-
-pub fn texture_storage() -> &'static RwLock<TextureStorage> {
-    context().texture_storage.as_ref()
-}
-
-pub(super) fn buffer() -> &'static RwLock<BufferArena> {
-    context().buffer.as_ref()
+pub(super) fn buffer(id: Option<ContextId>) -> Arc<RwLock<BufferArena>> {
+    Arc::clone(&context(id).buffer)
 }

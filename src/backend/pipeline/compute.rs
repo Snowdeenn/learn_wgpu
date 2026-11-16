@@ -52,7 +52,7 @@ impl<'a> ComputePipelineBuilder<'a> {
     }
 
     pub fn build(self) -> wgpu::ComputePipeline {
-        crate::backend::context::device().create_compute_pipeline(
+        crate::backend::context::device(None).create_compute_pipeline(
             &wgpu::ComputePipelineDescriptor {
                 label: self.label,
                 layout: Some(self.layout),

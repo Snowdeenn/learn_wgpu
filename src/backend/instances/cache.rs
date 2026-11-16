@@ -66,7 +66,8 @@ pub(in crate::backend) fn prepare<T: SpriteInstance>(
                 texture, region, ..
             } = instance.sprite()
             {
-                let storage = crate::backend::context::texture_storage().read().unwrap();
+                let storage_owner = crate::backend::context::texture_storage(None);
+                let storage = storage_owner.read().unwrap();
                 let resource = storage.get(*texture).expect("Unknown texture");
                 let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource
                 else {

@@ -74,7 +74,7 @@ impl<'a> TextureBuilder<'a> {
     }
 
     pub fn build(self) -> wgpu::Texture {
-        context::device().create_texture(&self.desc)
+        context::device(None).create_texture(&self.desc)
     }
 }
 

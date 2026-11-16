@@ -109,7 +109,7 @@ fn build_group(
             },
         })
         .collect();
-    context::device().create_bind_group(&wgpu::BindGroupDescriptor {
+    context::device(None).create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Render target bindings"),
         layout,
         entries: &entries,
