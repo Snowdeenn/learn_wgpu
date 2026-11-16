@@ -43,6 +43,14 @@ pub struct Renderer {
     pub conf: wgpu::SurfaceConfiguration,
 }
 
+fn select_surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+    formats
+        .iter()
+        .copied()
+        .find(wgpu::TextureFormat::is_srgb)
+        .or_else(|| formats.first().copied())
+}
+
 impl Renderer {
     pub fn new(window: Arc<Window>) -> Result<Self, RendererInitError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -66,14 +74,19 @@ impl Renderer {
         }))
         .map_err(RendererInitError::Adapter)?;
 
-        context::init(&adapter).map_err(RendererInitError::Context)?;
-
         let size = window.inner_size();
+        let capabilities = surface.get_capabilities(&adapter);
+        let format = select_surface_format(&capabilities.formats)
+            .ok_or(RendererInitError::SurfaceConfiguration)?;
+
         let mut conf = surface
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .ok_or(RendererInitError::SurfaceConfiguration)?;
+
         conf.present_mode = wgpu::PresentMode::Fifo;
-        conf.format = wgpu::TextureFormat::Bgra8UnormSrgb;
+        conf.format = format;
+
+        context::init(&adapter).map_err(RendererInitError::Context)?;
         surface.configure(&context::device(None), &conf);
 
         super::text::init(conf.format).map_err(RendererInitError::Text)?;
@@ -200,5 +213,32 @@ impl<'a> Frame<'a> {
         self.window.pre_present_notify();
         context::queue(None).present(self.texture_surface);
         gpu_wait
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_surface_format;
+    use wgpu::TextureFormat::*;
+
+    #[test]
+    fn surface_format_prefers_an_advertised_srgb_format() {
+        assert_eq!(
+            select_surface_format(&[Rgba8Unorm, Rgba8UnormSrgb, Bgra8UnormSrgb]),
+            Some(Rgba8UnormSrgb)
+        );
+    }
+
+    #[test]
+    fn surface_format_falls_back_to_the_first_advertised_format() {
+        assert_eq!(
+            select_surface_format(&[Rgba8Unorm, Bgra8Unorm]),
+            Some(Rgba8Unorm)
+        );
+    }
+
+    #[test]
+    fn empty_surface_formats_have_no_configuration() {
+        assert_eq!(select_surface_format(&[]), None);
     }
 }
