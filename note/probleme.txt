@@ -1,0 +1,32 @@
+-- Réutilisation prématurée des allocations de buffers avant la soumission des commandes GPU --
+
+Le moteur distingue la durée de vie d’un buffer GPU de celle des régions sous-allouées dans ce buffer.
+
+Actuellement, lorsqu’un OwnedResource<Buffer<…>> est détruit, son allocation est immédiatement libérée dans BufferArena. 
+Si c’était la dernière allocation d’une page, son offset revient à zéro et cette page peut être réutilisée.
+
+Or un encodeur ou un command buffer non encore soumis peut toujours contenir des commandes qui utilisent cette région. 
+wgpu conserve le buffer GPU, mais ne connaît pas les sous-allocations de notre arène : il n’empêche donc pas leur réutilisation.
+
+Exemple :
+	1. Encoder un dessin qui utilise le buffer A.
+	2. Détruire l’owner de A.
+	3. Allouer un buffer B dans la région libérée et y écrire des données.
+	4. Soumettre les commandes du dessin.
+
+Le dessin peut alors lire les données de B à la place de celles de A.
+
+Il faut séparer l’invalidation du handle et le recyclage de la région. La destruction de l’owner peut invalider immédiatement le handle, 
+mais la région doit rester réservée tant que des commandes non soumises peuvent encore l’utiliser.
+
+Pour préparer plusieurs encodeurs indépendants, chaque encodeur doit retenir les allocations qu’il utilise. 
+Lors de encoder.finish(), cette rétention doit être transférée au command buffer : terminer un encodeur ne soumet pas ses commandes. 
+Les allocations peuvent être relâchées après la soumission du command buffer, ou après sa destruction s’il est abandonné. 
+Une région ne devient recyclable que lorsque tous ses propriétaires et utilisateurs l’ont relâchée.
+
+Avec des écritures réalisées via la même queue, il suffit de protéger la région jusqu’à la soumission : les écritures suivantes seront 
+ordonnées après les commandes soumises, sans attendre la fin du GPU.
+
+Les bind groups conservés pour des utilisations futures doivent également retenir leurs allocations. Enfin, le cache d’instances 
+doit être adapté : remettre globalement next à zéro après la soumission d’un encodeur serait incorrect si d’autres encodeurs non 
+soumis utilisent encore ses slots.
