@@ -230,3 +230,9 @@ Garder les opérations de passes et les vecteurs de batches au lieu de les recon
 
 Optimiser ensuite selon les mesures.
 Si le GPU domine : tester le flou à demi-résolution. Si la préparation et les uploads dominent : éliminer les instances hors caméra et regrouper les accès aux atlas.
+
+Travail fait le 16/11/2026
+. Contexte GPU par défaut et contextes supplémentaires via Option<ContextId>.
+. Erreurs d'initialisation, de binding et de dessin remontées avec Result.
+. Format choisi dans les capacités de la surface, transmis aux pipelines et au texte.
+. Compilation et tests validés.
