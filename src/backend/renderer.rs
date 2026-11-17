@@ -143,8 +143,18 @@ impl Renderer {
             texture_surface: frame,
             view,
             encoder,
-            _text_cleanup: super::text::FrameCleanup,
+            _cleanup: FrameCleanup,
         }))
+    }
+}
+
+/// Runs after the frame's encoder is discarded or submitted.
+struct FrameCleanup;
+
+impl Drop for FrameCleanup {
+    fn drop(&mut self) {
+        super::instances::reset_frame();
+        super::text::reset_frame();
     }
 }
 
@@ -153,8 +163,8 @@ pub struct Frame<'a> {
     texture_surface: wgpu::SurfaceTexture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) encoder: wgpu::CommandEncoder,
-    // Keep this after the encoder: discard its commands before releasing text resources.
-    _text_cleanup: super::text::FrameCleanup,
+    // Keep this after the encoder: discard its commands before reusing frame resources.
+    _cleanup: FrameCleanup,
 }
 
 impl<'a> Frame<'a> {

@@ -224,12 +224,3 @@ pub fn submitted() {
 pub fn discard() {
     context::reset_frame();
 }
-
-/// Declared after Frame's encoder so an abandoned encoder is dropped first.
-pub(crate) struct FrameCleanup;
-
-impl Drop for FrameCleanup {
-    fn drop(&mut self) {
-        discard();
-    }
-}

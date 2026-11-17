@@ -1,7 +1,7 @@
 pub(crate) mod cache;
 
 pub use cache::memory_stats;
-pub(crate) use cache::submitted;
+pub(crate) use cache::{reset_frame, submitted};
 
 #[derive(Debug)]
 pub enum InstanceError {

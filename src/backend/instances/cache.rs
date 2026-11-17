@@ -139,8 +139,13 @@ fn try_prepare_render_instances(
 }
 
 pub(crate) fn submitted() {
+    reset_frame();
+}
+
+/// Call only after submitting or discarding the frame's commands.
+pub(crate) fn reset_frame() {
     if let Some(cache) = CACHE.get() {
-        // Called after queue.submit, so subsequent writes follow the previous draws.
+        // No unsubmitted frame commands may still reference these slots.
         cache.lock().unwrap().next = 0;
     }
 }
