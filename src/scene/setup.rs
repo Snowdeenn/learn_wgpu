@@ -517,7 +517,7 @@ pub fn initialize(
     let effect = particle::spawn_effect(
         Arc::new(EffectDescription {
             // Une seconde d'émission par bouffée, puis une pause avant la suivante.
-            emitter: EmitterSettings::burst(100_000, 4.5),
+            emitter: EmitterSettings::burst(10_000, 4.5),
             init_modules: vec![
                 Box::new(InitPosition {
                     shape: PositionShape::Circle {
