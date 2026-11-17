@@ -28,18 +28,24 @@ pub struct DrawPipeline {
 }
 
 impl PartialEq for DrawPipeline {
-    fn eq(&self, other: &Self) -> bool { self.raw == other.raw }
+    fn eq(&self, other: &Self) -> bool {
+        self.raw == other.raw
+    }
 }
 impl Eq for DrawPipeline {}
 
 impl<T: PipelineContext + Send + Sync + 'static> PipelineId<T> {
     pub fn erase(self) -> DrawPipeline {
-        fn resolve<T: PipelineContext + Send + Sync + 'static>(raw: Id<StoredContext>)
-            -> Option<Arc<dyn PipelineContext + Send + Sync>> {
+        fn resolve<T: PipelineContext + Send + Sync + 'static>(
+            raw: Id<StoredContext>,
+        ) -> Option<Arc<dyn PipelineContext + Send + Sync>> {
             let stored = storage().read().unwrap().get(raw)?.clone();
             Some(stored.downcast::<T>().ok()?)
         }
-        DrawPipeline { raw: self.raw, resolve: resolve::<T> }
+        DrawPipeline {
+            raw: self.raw,
+            resolve: resolve::<T>,
+        }
     }
 }
 
@@ -50,11 +56,15 @@ impl DrawPipeline {
 }
 
 impl<T: PipelineContext + Send + Sync + 'static> From<PipelineId<T>> for DrawPipeline {
-    fn from(id: PipelineId<T>) -> Self { id.erase() }
+    fn from(id: PipelineId<T>) -> Self {
+        id.erase()
+    }
 }
 
 impl<T: Send + Sync + 'static> ResourceHandle for PipelineId<T> {
-    fn release(self) { remove(self); }
+    fn release(self) {
+        remove(self);
+    }
 }
 
 impl<T> Clone for PipelineId<T> {
@@ -67,7 +77,9 @@ fn storage() -> &'static RwLock<Arena<StoredContext>> {
     STORAGE.get_or_init(|| RwLock::new(Arena::new()))
 }
 
-pub fn register<T: PipelineContext + Send + Sync + 'static>(context: T) -> OwnedResource<PipelineId<T>> {
+pub fn register<T: PipelineContext + Send + Sync + 'static>(
+    context: T,
+) -> OwnedResource<PipelineId<T>> {
     insert(context)
 }
 
@@ -85,11 +97,15 @@ pub fn get<T: Send + Sync + 'static>(id: PipelineId<T>) -> Option<Arc<T>> {
 }
 
 pub fn remove<T: Send + Sync + 'static>(id: PipelineId<T>) -> bool {
-    let mut contexts = storage().write().unwrap();
-    if contexts.get(id.raw).is_none() {
-        return false;
-    }
-    contexts.remove(id.raw).is_some()
+    let removed = {
+        let mut contexts = storage().write().unwrap();
+        if contexts.get(id.raw).is_none() {
+            return false;
+        }
+        contexts.remove(id.raw)
+    };
+
+    removed.is_some()
 }
 
 #[cfg(test)]
