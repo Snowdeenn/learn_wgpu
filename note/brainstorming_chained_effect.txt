@@ -1,0 +1,330 @@
+ça voudrait dire que les RenderEffect possède leur propre PassList (me semble pas trop mal)
+l'ochestrateur agit sur les RenderEffect préparation + ordonnancement => comment il ordonne les effets ? il les possède ? 
+
+je pense partir sur ce design les passes de post process donc de RenderEffect sont possèder par ce la par contre le renderer lui possède un vec ou autre conteneur de RenderEffect pour qu'ils soit passés a l'exécuteur le renderer conserve une PassList de pass pour du rendu qui n'est pas du post process ?
+
+limite de la PassList l'ordre des passes n'est plus garanti si on commence a séparer le stockage des passes.
+proposer une api qui permet l'insertion d'un slice de PassContext ? (pas sur)
+
+api qui peut insérer un slice de pass context
+
+
+struct ScheduledPass {
+    list: PassListId,
+    pass: PassId,
+}
+
+// Dans le renderer
+schedule: Vec<ScheduledPass>,
+
+
+trait RenderEffect {
+    fn passes(&self) -> &PassList;
+    fn passes_mut(&mut self) -> &mut PassList;
+}
+
+enum ScheduledPass {
+    Local(PassId),
+    Effect { effect: EffectId, pass: PassId },
+}
+
+struct SceneRenderer {
+    passes: PassList,
+    effects: Arena<Box<dyn RenderEffect>>,
+    schedule: Vec<ScheduledPass>,
+}
+
+append_effect(effect_id) ajoute les passes de l’effet dans l’ordre de sa PassList.
+insert_before(anchor, ScheduledPass::Effect { effect, pass }) place une passe précise dans l’ordre global.
+
+renderer.effect_mut::<BlurEffect>(blur_id). SceneRendering peut alors conserver blur_id, et toute la résolution des passes reste dans SceneRenderer
+
+
+======================================================================
+SYNTHÈSE DES DÉCISIONS VALIDÉES — 18/11/2026
+======================================================================
+
+Cette synthèse complète les notes initiales ci-dessus et prévaut lorsqu'une
+proposition antérieure diverge. Elle décrit le design à implémenter, pas une
+fonctionnalité déjà intégralement présente. Les noms et signatures de l'API
+restent à affiner pendant le codage.
+
+1. OBJECTIF ET PÉRIMÈTRE
+-----------------------
+
+Velum reste un moteur de rendu. L'objectif est d'orchestrer des effets de rendu
+comme le flou, le bloom et le tone mapping, pas des comportements de gameplay.
+Les notions de monde, VFX et HUD restent des choix de l'application.
+Les particules sont à la limite du périmètre ; elles ne justifient pas un
+système général de comportements VFX dans cette partie.
+
+Les données partagées entre passes sont des ressources de rendu : textures
+couleur, profondeur, masques, etc. Les comportements tels que le déplacement
+d'une boule de feu ou le déclenchement d'un émetteur restent dans l'application.
+
+Cas concret final : le bloom.
+  Scène HDR -------------------------------------------+
+      |                                                |
+      +-> extraction lumineuse -> flou H -> flou V -----+-> composition
+                                                            |
+                                                            v
+                                                      image HDR + bloom
+                                                            |
+                                                        tone mapping
+                                                            |
+                                                          écran
+
+Le HDR est une représentation de couleur, pas nécessairement une passe.
+Le tone mapping reste séparé du bloom afin de permettre d'autres traitements
+HDR avant la conversion vers l'affichage.
+
+2. EFFET DE RENDU ET RESPONSABILITÉS
+----------------------------------
+
+Un RenderEffect regroupe :
+  - Des entrées nommées, potentiellement plusieurs textures.
+  - Des paramètres propres à son type concret.
+  - Ses ressources et cibles intermédiaires privées.
+  - Une PassList de passes internes.
+  - Une sortie principale.
+
+Exemple : le flou horizontal et le flou vertical sont deux passes internes
+d'un même effet. Le BlurEffect actuel doit évoluer pour posséder sa PassList :
+au départ, ses passes étaient construites séparément dans le banc d'essai.
+
+Ne pas confondre :
+  - RenderData : stockage de données fourni aux opérations.
+  - RenderPhase : commandes de dessin, tri et batching.
+  - Paramètres d'effet : rayon, sigma, seuil, intensité, etc.
+
+Les paramètres peuvent vivre dans l'objet effet ; il n'est pas nécessaire
+de les déplacer systématiquement dans RenderData ou RenderPhase.
+
+3. ENTRÉES NOMMÉES
+------------------
+
+Choix validé : noms, plutôt qu'indices numériques ou nouveaux handles de ports.
+Les effets fournis peuvent exposer des constantes pour éviter les fautes.
+
+Signatures de travail :
+
+  fn inputs(&self) -> &[EffectInputDesc];
+
+  fn set_input(
+      &mut self,
+      name: &str,
+      target: RenderTargetId,
+  ) -> Result<(), EffectError>;
+
+EffectInputDesc décrit :
+  - Le nom.
+  - Le caractère obligatoire de l'entrée.
+  - Le type de ressource attendu (couleur, profondeur, etc.).
+
+Un nom inconnu est une erreur. Les raccords doivent respecter les contraintes
+de l'effet ; toutes les entrées obligatoires doivent être présentes avant
+l'encodage.
+
+Plusieurs entrées ne signifient pas seulement mélanger deux images : un effet
+peut aussi lire une couleur et un masque, ou une couleur et une profondeur.
+Le shader définit leur utilisation.
+
+Les RenderTargetId sont des accès non propriétaires. Les propriétaires des
+cibles doivent rester vivants pendant leur utilisation.
+
+4. SORTIE, CONNEXIONS ET DÉSACTIVATION
+------------------------------------
+
+Une sortie principale :
+  fn output(&self) -> RenderTargetId;
+
+Un relais optionnel quand l'effet est désactivé :
+  fn bypass_input(&self) -> Option<&str>;
+
+Le relais désigne le nom de l'entrée qui remplace la sortie de l'effet.
+Exemple : le bloom désactivé renvoie son entrée "scene".
+Un effet de génération peut ne pas avoir de relais naturel.
+
+Sources de connexion proposées et validées :
+
+  enum EffectSource {
+      Target(RenderTargetId),
+      Output(EffectId),
+  }
+
+SceneRenderer conserve les connexions logiques et résout les cibles effectives
+selon l'activation, puis les transmet aux effets via set_input.
+Les connexions restent distinctes du planning d'exécution.
+
+Sauter les passes d'un effet ne suffit pas : les consommateurs ne doivent pas
+lire l'ancienne image de sa cible de sortie.
+Si une sortie est utilisée et qu'aucun relais ne permet de la résoudre,
+la désactivation est invalide et produit une erreur explicite.
+
+5. PROPRIÉTÉ ET PLANNING GLOBAL
+------------------------------
+
+Structure retenue :
+
+  struct SceneRenderer {
+      passes: PassList,
+      effects: Arena<Box<dyn RenderEffect>>,
+      schedule: Vec<ScheduledPass>,
+      // Stockage des connexions à préciser pendant l'implémentation.
+  }
+
+  enum ScheduledPass {
+      Local(PassId),
+      Effect { effect: EffectId, pass: PassId },
+  }
+
+Chaque effet possède sa propre PassList. Le schedule ne possède pas une seconde
+copie des passes : il référence les passes locales ou celles des effets.
+La PassList existante fournit déjà une arène pour l'identité des passes et
+un vecteur pour leur ordre : la réutiliser, sans reconstruire ce mécanisme.
+La résolution d'un PassId interne se fait dans la PassList de l'effet indiqué.
+
+Garanties retenues pour la première version :
+  - Un effet n'est inséré qu'une seule fois dans le planning.
+  - Ses passes sont exécutées dans leur ordre interne.
+  - Toutes ses passes forment un bloc contigu.
+  - La structure de ses passes reste stable après son enregistrement.
+  - Ses paramètres et ses raccords restent modifiables.
+
+API envisagée : append_effect(id), insert_before, insert_after.
+Le placement autour d'un effet doit pouvoir viser son bloc sans connaître
+ses passes internes. La représentation d'un ancrage/bloc reste à préciser.
+L'idée initiale d'intercaler librement une passe entre deux étapes d'un effet
+n'est pas retenue pour la première version.
+
+Pas de calcul automatique d'ordonnancement : l'application déclare l'ordre.
+Les dépendances servent à vérifier cet ordre et à signaler une incohérence,
+pas à réorganiser silencieusement le planning. Un tri topologique n'est pas
+nécessaire tant que l'ordre reste explicite.
+
+6. CONTRAT DU TRAIT
+-------------------
+
+RenderEffect doit permettre :
+  - De décrire et raccorder les entrées nommées.
+  - De préparer les ressources/paramètres.
+  - D'obtenir la sortie principale et le relais optionnel.
+  - D'accéder à la PassList et à son ordre/aux passes par identifiant.
+
+Accès envisagés, à adapter à l'API réelle de PassList :
+  fn passes(&self) -> &PassList;
+  fn passes_mut(&mut self) -> &mut PassList;
+
+Ne pas ajouter une seconde arène et un second vecteur d'ordre à l'effet.
+Les signatures exactes d'accès aux passes seront affinées au codage.
+
+7. PRÉPARATION ET EXÉCUTION
+--------------------------
+
+Cycle validé :
+  résolution des connexions / set_input
+      -> prepare() une fois par effet actif
+      -> exécution des passes selon schedule
+      -> résultat disponible via la sortie effective
+
+  fn prepare(&mut self) -> Result<(), EffectError>;
+
+prepare peut :
+  - Vérifier les entrées requises et leurs contraintes.
+  - Mettre à jour les bindings si les raccords ont changé.
+  - Recalculer et envoyer les paramètres GPU seulement si nécessaire.
+  - Actualiser des paramètres dépendant des dimensions courantes.
+
+Pour le flou : poids du noyau et uniforms horizontal/vertical lorsque les
+réglages changent. Si rien ne change, éviter le travail et les uploads inutiles.
+prepare ne dessine pas, n'encode pas les passes et ne soumet rien.
+
+Un seul chemin d'exécution :
+  SceneRenderer prépare et ordonne.
+  L'exécuteur backend ouvre les passes GPU et appelle les opérations.
+  La frame conserve la soumission et la présentation.
+
+Ne pas exécuter une fois les passes dans un orchestrateur séparé, puis une
+seconde fois dans SceneRenderer. Le renderer est l'orchestrateur.
+
+8. REDIMENSIONNEMENT
+-------------------
+
+Réutiliser le système existant :
+  - Le resize du renderer appelle celui des cibles du stockage.
+  - Les cibles suivant cette politique sont remplacées et leur révision augmente.
+  - Les bindings détectent les nouvelles révisions et se reconstruisent.
+  - Un Arc déjà résolu est un instantané ; résoudre le handle à nouveau pour
+    accéder à la cible actualisée.
+
+Pas de resize obligatoire supplémentaire sur RenderEffect pour ces cibles.
+prepare peut lire les dimensions actuelles si les paramètres GPU en dépendent.
+Les politiques de dimensions supplémentaires (demi-résolution, par exemple)
+restent un sujet distinct à traiter si un effet en a besoin.
+
+9. PARAMÈTRES ACCESSIBLES DEPUIS L'APPLICATION
+-------------------------------------------
+
+Conserver les paramètres typés sur les effets concrets : BlurSettings,
+BloomSettings, etc. Prévoir un accès typé à travers EffectId :
+
+  renderer.effect_mut::<BlurEffect>(blur_id)?;
+  renderer.effect::<BlurEffect>(blur_id)?;
+
+L'identifiant et le type demandé sont vérifiés ; mauvais type = erreur explicite.
+Pas de méthode générique parameters() imposée au trait.
+L'écriture précise de cette API reste à affiner pendant l'implémentation.
+prepare applique les changements nécessaires au rendu suivant.
+
+10. VALIDATIONS
+---------------
+
+Références :
+  - Effets, passes et cibles existent.
+  - Chaque passe interne est résolue dans le bon effet.
+
+Entrées/sorties :
+  - Noms reconnus et entrées obligatoires raccordées.
+  - Types, formats, usages, dimensions et nombre d'échantillons compatibles
+    avec les contraintes de l'effet.
+  - Une sortie est utilisable comme destination et comme source si elle est lue.
+  - Ne pas imposer que toutes les entrées aient la même résolution.
+
+Dépendances et accès :
+  - Pas de connexions cycliques.
+  - Un producteur termine ses passes avant la consommation de sa sortie.
+  - Une passe ne lit pas comme texture la même sous-ressource qu'elle écrit
+    en pièce jointe.
+
+Planning :
+  - Pas de double insertion d'un effet.
+  - Toutes ses passes apparaissent dans leur ordre interne, en bloc contigu.
+
+Activation/suppression :
+  - Résoudre les sorties de remplacement pour les effets désactivés.
+  - Erreur si une sortie utilisée ne possède pas de relais valide.
+  - Retirer un effet enlève ses références du planning.
+  - Ses consommateurs doivent être reconnectés ou signaler une erreur.
+
+Moments de contrôle :
+  - Lors des raccords et modifications de planning : identifiants, noms,
+    cycles, ordre, doublons.
+  - Avant encodage / dans prepare : ressources actuelles, compatibilité et
+    contraintes propres à l'effet, notamment après redimensionnement.
+
+Valider les règles de l'orchestration sans dupliquer toute la validation wgpu
+ou les contrôles déjà réalisés par le backend.
+
+11. POINTS D'ÉCRITURE ENCORE OUVERTS
+----------------------------------
+
+  - Noms, signatures exactes et emplacement des types publics.
+  - API d'itération/résolution des identifiants dans PassList.
+  - Type d'ancrage pour insérer avant/après un bloc du planning.
+  - Représentation du stockage des connexions.
+  - Mécanisme d'accès typé aux Box<dyn RenderEffect>.
+  - Variantes et contenu précis des erreurs.
+
+Ces choix d'implémentation ne changent pas les responsabilités et garanties
+validées ci-dessus.
+
