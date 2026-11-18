@@ -17,12 +17,18 @@ impl<'a> DebugUi<'a> {
         self.ui.button(text.into())
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn toggle(&mut self, label: &str, value: &mut bool) -> egui::Response {
         self.ui.checkbox(value, label)
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn checkbox(&mut self, label: &str) -> bool {
         let id = self.ui.make_persistent_id(label);
         let mut state = self
@@ -34,7 +40,10 @@ impl<'a> DebugUi<'a> {
         state
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn slider(
         &mut self,
         label: &str,
@@ -51,7 +60,10 @@ impl<'a> DebugUi<'a> {
         });
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn metric_colored(
         &mut self,
         label: &str,

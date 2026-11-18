@@ -9,7 +9,9 @@ use super::{BindingSetError, TextureBinding, TextureBindingSet};
 pub type TextureBindingSetId = Id<TextureBindingSet>;
 
 impl ResourceHandle for TextureBindingSetId {
-    fn release(self) { remove(self); }
+    fn release(self) {
+        remove(self);
+    }
 }
 static STORAGE: OnceLock<Mutex<Arena<TextureBindingSet>>> = OnceLock::new();
 
@@ -34,7 +36,20 @@ pub fn group(id: TextureBindingSetId) -> Result<wgpu::BindGroup, BindingSetError
     Ok(set.group.clone())
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+/// Reconnects an existing set while preserving the ID referenced by operations.
+pub fn update(id: TextureBindingSetId, entries: Vec<TextureBinding>) -> Result<(), BindingSetError> {
+    let layout = storage().lock().unwrap().get(id)
+        .ok_or(BindingSetError::MissingSet(id))?.layout.clone();
+    let replacement = TextureBindingSet::new(layout, entries)?;
+    let mut sets = storage().lock().unwrap();
+    *sets.get_mut(id).ok_or(BindingSetError::MissingSet(id))? = replacement;
+    Ok(())
+}
+
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn remove(id: TextureBindingSetId) -> bool {
     let mut sets = storage().lock().unwrap();
     if sets.get(id).is_none() {

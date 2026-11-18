@@ -2,53 +2,7 @@ use std::any::Any;
 
 use new_collection::{Arena, Id};
 
-use crate::backend::{
-    self,
-    pass::{PassContext, PassError, PassList},
-    renderer::Frame,
-};
-
-#[derive(Default)]
-pub struct SceneRenderer {
-    passes: PassList,
-}
-
-impl SceneRenderer {
-    pub fn new() -> Self {
-        SceneRenderer {
-            passes: PassList::new(),
-        }
-    }
-
-    #[inline]
-    pub fn execute(&mut self, frame: &mut Frame, data: &mut RenderData) -> Result<(), PassError> {
-        backend::pass::execute(&mut self.passes, &mut frame.encoder, &frame.view, data)
-    }
-}
-
-pub fn renderer() -> SceneRendererBuilder {
-    SceneRendererBuilder::default()
-}
-
-#[derive(Default)]
-#[must_use]
-pub struct SceneRendererBuilder {
-    passes: PassList,
-}
-
-impl SceneRendererBuilder {
-    pub fn add_pass(mut self, pass: PassContext) -> Self {
-        self.passes.push(pass);
-        self
-    }
-
-    pub fn build(self) -> SceneRenderer {
-        SceneRenderer {
-            passes: self.passes,
-        }
-    }
-}
-
+use super::scene_renderer::SceneRenderer;
 pub struct RenderDataId<T> {
     raw: Id<Box<dyn Any>>,
     _marker: std::marker::PhantomData<T>,

@@ -1,4 +1,3 @@
-use crate::core::OwnedResource;
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding, TextureBindingSetId},
@@ -6,6 +5,7 @@ use crate::backend::{
     pipeline::{self, PipelineId},
     target::{self, RenderTargetId},
 };
+use crate::core::OwnedResource;
 
 crate::define_pipeline_context!(Present);
 pub struct PresentEffect {

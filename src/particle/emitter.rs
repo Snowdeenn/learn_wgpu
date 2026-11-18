@@ -16,7 +16,10 @@ impl EmitterSettings {
         }
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn once(count: u32) -> Self {
         Self::new(count, 0., 0., Some(1))
     }
@@ -25,28 +28,43 @@ impl EmitterSettings {
         Self::new(count, 0., period, None)
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn continuous(count: u32) -> Self {
         Self::new(count, 1., 1., None)
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn is_once(&self) -> bool {
         self.cycles == Some(1)
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn is_forever(&self) -> bool {
         self.cycles.is_none()
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn with_cycles(mut self, cycles: u32) -> Self {
         self.cycles = Some(cycles);
         self
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub fn with_period(mut self, period: f32) -> Self {
         self.period = period;
         self

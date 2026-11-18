@@ -95,6 +95,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("GPU adapter required for this test");
     context::init(&adapter).unwrap();
+    crate::effects::blur::gpu_regression();
     crate::backend::phase::gpu_regression();
     owned_resource_lifecycle();
     depth_ordering_and_resize();
@@ -244,43 +245,56 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     let read_pipeline = read_pipeline_owner.id();
     let mut frame = RenderData::new();
     let trace = frame.insert(Vec::<Step>::new());
-    let mut passes = vec![
-        render(
-            source,
-            wgpu::LoadOp::Clear(wgpu::Color::RED),
-            RenderSequence::new(vec![
-                Box::new(RecordOperation { trace, value: 1 }),
-                Box::new(RecordOperation { trace, value: 2 }),
-            ]),
-        ),
-        compute(CopyTargetOperation {
-            pipeline: copy_pipeline,
-            bindings: copy_bindings,
-            trace,
-        }),
-        render(
-            PassTarget::Surface,
-            wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-            ReadbackOperation {
-                pipeline: read_pipeline,
-                bindings: read_bindings,
-                trace,
-            },
-        ),
-        render(
-            PassTarget::Surface,
-            wgpu::LoadOp::Load,
-            RecordOperation { trace, value: 5 },
-        ),
-    ];
-    let staging = device.create_buffer(&wgpu::BufferDescriptor {
-        label: None,
-        size: 8 * 256,
-        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
+    let mut passes = PassList::new();
+    for (color, expected) in [
+        (wgpu::Color::RED, [255, 0, 0, 255]),
+        (wgpu::Color::GREEN, [0, 255, 0, 255]),
+    ] {
+        passes = PassList::new();
+        for pass in [
+            render(
+                source,
+                wgpu::LoadOp::Clear(color),
+                RenderSequence::new(vec![
+                    Box::new(RecordOperation { trace, value: 1 }),
+                    Box::new(RecordOperation { trace, value: 2 }),
+                ]),
+                true,
+            ),
+            compute(
+                CopyTargetOperation {
+                    pipeline: copy_pipeline,
+                    bindings: copy_bindings,
+                    trace,
+                },
+                true,
+            ),
+            render(
+                PassTarget::Surface,
+                wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                ReadbackOperation {
+                    pipeline: read_pipeline,
+                    bindings: read_bindings,
+                    trace,
+                },
+                true,
+            ),
+            render(
+                PassTarget::Surface,
+                wgpu::LoadOp::Load,
+                RecordOperation { trace, value: 5 },
+                true,
+            ),
+        ] {
+            passes.insert(pass);
+        }
+        let staging = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: 8 * 256,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
-    for expected in [[255, 0, 0, 255], [0, 255, 0, 255]] {
         frame.get_mut(trace).unwrap().clear();
         let mut encoder = device.create_command_encoder(&Default::default());
         execute(
@@ -334,16 +348,14 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         assert_eq!(target::get(source).unwrap().size(), [8, 8]);
         assert_eq!(target::get(fixed).unwrap().revision(), 0);
         assert_eq!(target::get(fixed).unwrap().size(), [4, 4]);
-        if let PassContext::Render { load, .. } = &mut passes[0] {
-            *load = wgpu::LoadOp::Clear(wgpu::Color::GREEN);
-        }
     }
 
     // A failed operation stops the sequence and the following passes.
     let missing = frame.insert(Vec::<Step>::new());
     frame.remove(missing).unwrap();
     frame.get_mut(trace).unwrap().clear();
-    let mut failing = vec![
+    let mut failing = PassList::new();
+    for pass in [
         render(
             PassTarget::Surface,
             wgpu::LoadOp::Load,
@@ -355,13 +367,17 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
                 }),
                 Box::new(RecordOperation { trace, value: 3 }),
             ]),
+            true,
         ),
         render(
             PassTarget::Surface,
             wgpu::LoadOp::Load,
             RecordOperation { trace, value: 4 },
+            true,
         ),
-    ];
+    ] {
+        failing.insert(pass);
+    }
     let mut encoder = device.create_command_encoder(&Default::default());
     assert!(matches!(
         execute(
@@ -384,7 +400,13 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     drop(encoder);
 
     let mut encoder = device.create_command_encoder(&Default::default());
-    execute(&mut [], &mut encoder, surface.texture().view(), &mut frame).unwrap();
+    execute(
+        &mut PassList::new(),
+        &mut encoder,
+        surface.texture().view(),
+        &mut frame,
+    )
+    .unwrap();
     context::queue(None).submit([encoder.finish()]);
 
     assert!(target::remove(source));
@@ -543,14 +565,16 @@ fn depth_ordering_and_resize() {
     let color_owner = color;
     let color = color_owner.id();
     let depth = depth::DepthTarget::new([4, 4]);
-    let mut passes = vec![
+    let mut passes = PassList::new();
+    passes.insert(
         render(
             color,
             wgpu::LoadOp::Clear(wgpu::Color::BLACK),
             DrawDepth(pipeline),
+            true,
         )
         .with_depth(depth.id()),
-    ];
+    );
     let staging = device.create_buffer(&wgpu::BufferDescriptor {
         label: None,
         size: 8 * 256,

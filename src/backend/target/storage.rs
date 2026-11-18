@@ -10,7 +10,9 @@ type RenderTargetStorage = Arena<Arc<RenderTarget>, RenderTarget>;
 pub type RenderTargetId = Id<RenderTarget>;
 
 impl ResourceHandle for RenderTargetId {
-    fn release(self) { remove(self); }
+    fn release(self) {
+        remove(self);
+    }
 }
 
 static STORAGE: OnceLock<RwLock<RenderTargetStorage>> = OnceLock::new();
@@ -30,7 +32,10 @@ pub fn get(id: RenderTargetId) -> Option<Arc<RenderTarget>> {
     storage().read().unwrap().get(id).cloned()
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn remove(id: RenderTargetId) -> bool {
     let mut targets = storage().write().unwrap();
     if targets.get(id).is_none() {

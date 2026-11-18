@@ -1,6 +1,9 @@
 use super::App;
 use crate::{
-    backend::{self}, camera::Camera2D, particle, scene::resources::{CamBuffer, Fps, FrameTimings, SceneRendering},
+    backend::{self},
+    camera::Camera2D,
+    particle,
+    scene::resources::{CamBuffer, Fps, FrameTimings, SceneRendering},
 };
 use std::time::Instant;
 
@@ -40,7 +43,10 @@ impl App {
         let start = Instant::now();
         particle::update_effects(dt);
         let elapsed = start.elapsed();
-        self.resources.write_resource::<FrameTimings>().simulation.record(elapsed);
+        self.resources
+            .write_resource::<FrameTimings>()
+            .simulation
+            .record(elapsed);
 
         {
             let mut cam = self.resources.write_resource::<Camera2D>();

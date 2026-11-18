@@ -47,7 +47,10 @@ impl UpdateModule for Drag {
     }
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct Attractor {
     pub point: [f32; 2],
     pub strength: f32,
@@ -157,7 +160,10 @@ impl UpdateModule for IntegratePosition {
 
 /// In 2D the plane is a line through `point`; `normal` points to the allowed side.
 /// Run after IntegratePosition. Particles are treated as points.
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct PlaneCollision {
     pub point: [f32; 2],
     pub normal: [f32; 2],

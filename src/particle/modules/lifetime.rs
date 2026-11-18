@@ -1,5 +1,5 @@
-use crate::particle::data::{Access, ParticleView};
 use super::{InitModule, ParticleMask, UpdateModule, sample_uniform};
+use crate::particle::data::{Access, ParticleView};
 
 pub struct RandomLifetime {
     pub min: f32,
@@ -22,7 +22,10 @@ impl InitModule for RandomLifetime {
     }
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct InitAge;
 
 impl InitModule for InitAge {

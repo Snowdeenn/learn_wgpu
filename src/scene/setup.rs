@@ -1,10 +1,13 @@
+use crate::effects::blur::BlurEffect;
+use crate::api::scene_renderer::EffectSource;
+use crate::api::scene::RenderData;
+use crate::api::scene_renderer;
 use crate::core::OwnedResource;
 use crate::core::ResourceHandle;
-use crate::api::scene::RenderData;
 use std::{sync::Arc, vec};
 
 use crate::effects::{
-    blur::{BlurHorizontalOperation, BlurVerticalOperation},
+    RenderEffect,
     composite::CompositionOperation,
     present::PresentOperation,
 };
@@ -348,13 +351,18 @@ pub fn initialize(
     };
     resources.insert(ScenePipelines {
         mesh: keep(&mut data, backend::pipeline::register(scene_mesh_pipe_ctx)),
-        texture: keep(&mut data, backend::pipeline::register(scene_texture_pipe_ctx)),
-        texture_array: keep(&mut data, backend::pipeline::register(scene_tex_array_pipe_ctx)),
+        texture: keep(
+            &mut data,
+            backend::pipeline::register(scene_texture_pipe_ctx),
+        ),
+        texture_array: keep(
+            &mut data,
+            backend::pipeline::register(scene_tex_array_pipe_ctx),
+        ),
     });
 
     resources.insert(CamBuffer(cam_buff));
     resources.insert(cam);
-
 
     let instances = data.insert(InstanceData {
         data: instance_data,
@@ -405,9 +413,16 @@ pub fn initialize(
     });
     let target = keep(&mut data, target);
 
-    let blur = crate::effects::blur::BlurEffect::new(format, resolution);
+    let particle_target = target::register(RenderTargetDescriptor {
+        label: "Particles source", size: TargetSize::Window { width: resolution[0], height: resolution[1] },
+        format, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        sample_count: 1,
+    });
+    let particle_target = keep(&mut data, particle_target);
+    let mut blur = crate::effects::blur::BlurEffect::new(format, resolution);
+    blur.set_input(crate::effects::blur::BlurEffect::SOURCE, particle_target).expect("Valid blur input");
     let present = crate::effects::present::PresentEffect::new(target, format);
-    let composition = crate::effects::composite::CompositeEffect::new(blur.target_a.id(), format);
+    let composition = crate::effects::composite::CompositeEffect::new(blur.output(), format);
 
     let mode = data.insert(*resources.read_resource::<ScenePipeline>());
     let pipelines = *resources.read_resource::<ScenePipelines>();
@@ -428,18 +443,6 @@ pub fn initialize(
         pipelines: particle_pipelines,
     };
 
-    let blur_vertical = BlurVerticalOperation {
-        pipeline: blur.pipeline.id(),
-        source: blur.source_a.id(),
-        direction: blur.vertical_group.clone(),
-    };
-
-    let blur_horizontal = BlurHorizontalOperation {
-        pipeline: blur.pipeline.id(),
-        source: blur.source_b.id(),
-        direction: blur.horizontal_group.clone(),
-    };
-
     let composition_op = CompositionOperation {
         pipeline: composition.pipeline.id(),
         source: composition.source.id(),
@@ -447,51 +450,50 @@ pub fn initialize(
 
     let depth = backend::depth::DepthTarget::new(resolution);
 
-    let renderer = crate::api::scene::renderer()
-        .add_pass(
-            pass::render(
-                PassTarget::Offscreen(target),
-                wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                operation,
-            )
-            .with_depth(depth.id()),
-        )
-        .add_pass(pass::render(
+    let mut renderer = scene_renderer::renderer();
+    renderer.add_pass(
+        pass::render(
             PassTarget::Offscreen(target),
-            wgpu::LoadOp::Load,
-            SceneTextOperation {},
-        ))
-        .add_pass(pass::render(
-            PassTarget::Offscreen(blur.target_a.id()),
-            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-            particle_op,
-        ))
-        .add_pass(pass::render(
-            PassTarget::Offscreen(blur.target_b.id()),
-            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-            blur_vertical,
-        ))
-        .add_pass(pass::render(
-            PassTarget::Offscreen(blur.target_a.id()),
-            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-            blur_horizontal,
-        ))
-        .add_pass(pass::render(
-            PassTarget::Offscreen(target),
-            wgpu::LoadOp::Load,
-            composition_op,
-        ))
-        .add_pass(pass::render(
-            PassTarget::Surface,
             wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-            present_operation,
-        ));
+            operation,
+            true,
+        )
+        .with_depth(depth.id()),
+    );
+    renderer.add_pass(pass::render(
+        PassTarget::Offscreen(target),
+        wgpu::LoadOp::Load,
+        SceneTextOperation {},
+        true,
+    ));
+    renderer.add_pass(pass::render(
+        PassTarget::Offscreen(particle_target),
+        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+        particle_op,
+        true,
+    ));
+    let mut renderer = renderer.build();
+    let blur_id = renderer.add_effect(blur);
+    renderer.connect(blur_id, BlurEffect::SOURCE, EffectSource::Target(particle_target)).expect("Valid blur connection");
+    renderer.append_effect(blur_id).expect("Valid blur schedule");
+    renderer.add_pass(pass::render(
+        PassTarget::Offscreen(target),
+        wgpu::LoadOp::Load,
+        composition_op,
+        true,
+    ));
+    renderer.add_pass(pass::render(
+        PassTarget::Surface,
+        wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+        present_operation,
+        true,
+    ));
 
     data.insert(depth);
     data.insert(present);
-    data.insert(composition);
+    let composition = data.insert(composition);
     let scene = Scene {
-        renderer: renderer.build(),
+        renderer,
         data,
     };
     let scene = velum.add_scene(scene);
@@ -502,7 +504,8 @@ pub fn initialize(
         mode,
         instances,
         texts,
-        blur,
+        blur: blur_id,
+        composition,
     });
 
     let bubble = backend::load_texture(
@@ -562,7 +565,7 @@ pub fn initialize(
                     end: [15.0; 2],
                 }),
                 Box::new(ColorOverLifetime {
-                    start: [1.0, 1.0, 1.0, 0.85],
+                    start: [0.5, 0.5, 0.5, 0.85],
                     end: [0.75, 0.9, 1.0, 0.0],
                 }),
             ],

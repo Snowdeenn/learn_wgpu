@@ -1,6 +1,6 @@
-use crate::core::OwnedResource;
 use super::storage;
 pub use super::storage::{get, remove};
+use crate::core::OwnedResource;
 
 pub type ComputePipelineId<T> = storage::PipelineId<T>;
 

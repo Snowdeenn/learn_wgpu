@@ -16,7 +16,10 @@ fn effect_storage() -> &'static RwLock<EffectStorage> {
     EFFECTS.get_or_init(|| RwLock::new(EffectStorage::new()))
 }
 
-pub fn spawn_effect(description: Arc<EffectDescription>, position: [f32; 2]) -> OwnedResource<Id<EffectInstance>> {
+pub fn spawn_effect(
+    description: Arc<EffectDescription>,
+    position: [f32; 2],
+) -> OwnedResource<Id<EffectInstance>> {
     let instance = EffectInstance::new(description, position);
     OwnedResource::new(effect_storage().write().unwrap().insert(instance))
 }
@@ -48,12 +51,16 @@ pub fn for_each_prepared_effect(mut visit: impl FnMut(&mut RenderModuleOutput)) 
 pub fn remove_effect(id: Id<EffectInstance>) -> bool {
     let removed = {
         let mut effects = effect_storage().write().unwrap();
-        if effects.get(id).is_none() { return false; }
+        if effects.get(id).is_none() {
+            return false;
+        }
         effects.remove(id)
     };
     removed.is_some()
 }
 
 impl ResourceHandle for Id<EffectInstance> {
-    fn release(self) { remove_effect(self); }
+    fn release(self) {
+        remove_effect(self);
+    }
 }

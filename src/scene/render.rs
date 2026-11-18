@@ -120,13 +120,30 @@ pub fn render(resources: &Resources, frame: &mut Frame<'_>) -> Result<(), SceneE
         .record(elapsed);
 
     let mode = *resources.read_resource::<ScenePipeline>();
-    let mut rendering = resources.write_resource::<SceneRendering>();
+    let rendering = resources.read_resource::<SceneRendering>();
     let mut velum = resources.write_resource::<Velum>();
     let Scene { data, .. } = &mut *velum.scene_mut(rendering.scene).unwrap();
     let mode_id = rendering.mode;
     *data.get_mut(mode_id).unwrap() = mode;
 
-    rendering.blur.prepare();
+    // This local composition pass is outside the effect graph: reconnect its
+    // sampled source explicitly when the blur switches to its bypass input.
+    let output = velum
+        .scene(rendering.scene)
+        .unwrap()
+        .renderer
+        .resolve_source(crate::api::scene_renderer::EffectSource::Output(
+            rendering.blur,
+        ))
+        .map_err(PassError::Schedule)?;
+    velum
+        .scene_mut(rendering.scene)
+        .unwrap()
+        .data
+        .require_mut(rendering.composition)
+        .map_err(PassError::from)?
+        .set_source(output)
+        .map_err(PassError::from)?;
 
     let start = Instant::now();
     let result = velum.render(frame);

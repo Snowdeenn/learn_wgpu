@@ -5,15 +5,27 @@ mod resource;
 
 pub(crate) use draw::discard as reset_frame;
 
-#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
+#[allow(
+    unused_imports,
+    reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
+)]
 pub use context::{InitError, init};
-#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
+#[allow(
+    unused_imports,
+    reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
+)]
 pub use draw::{TextView, discard, draw_all, prepare, submitted};
 pub use glyphon::cosmic_text::Align;
 pub use glyphon::{Family, Style, Weight, Wrap};
-#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
+#[allow(
+    unused_imports,
+    reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
+)]
 pub use instance::{Text, TextClip, TextInstance, TextPlacement, TextSpace};
-#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
+#[allow(
+    unused_imports,
+    reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
+)]
 pub use resource::{
     TextDescription, TextId, TextLayout, TextResource, register, remove, set_layout, set_text,
 };

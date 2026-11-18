@@ -107,7 +107,9 @@ pub struct OwnedResource<H: ResourceHandle> {
 
 impl<H: ResourceHandle> std::ops::Deref for OwnedResource<H> {
     type Target = H;
-    fn deref(&self) -> &H { &self.handle }
+    fn deref(&self) -> &H {
+        &self.handle
+    }
 }
 
 impl<H: ResourceHandle> OwnedResource<H> {

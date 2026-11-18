@@ -2,8 +2,8 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 mod app;
 use velum::{api, backend, camera, core, effects, geometry, particle};
-pub use velum::{create_marker, define_render_operation, define_compute_operation};
-pub use velum::{define_pipeline_context, unique_resource, bind_group, pipeline_context};
+pub use velum::{bind_group, define_pipeline_context, pipeline_context, unique_resource};
+pub use velum::{create_marker, define_compute_operation, define_render_operation};
 mod debug;
 mod scene;
 

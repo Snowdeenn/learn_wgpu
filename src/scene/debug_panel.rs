@@ -1,3 +1,4 @@
+use crate::effects::blur::BlurEffect;
 use super::resources::{
     CircleMesh, Fps, FrameTimings, RectMesh, ScenePipeline, SceneRendering, TriangleMesh,
 };
@@ -90,26 +91,39 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
             w.create_widget("Flou des particules")
                 .header(true)
                 .show(|w| {
-                    let mut rendering = rs.write_resource::<SceneRendering>();
-                    let settings = &mut rendering.blur.settings;
+                    let rendering = rs.read_resource::<SceneRendering>();
+                    let mut velum = rs.write_resource::<Velum>();
+                    let scene = velum.scene_mut(rendering.scene).unwrap();
+                    let blur = scene.renderer.effect_mut::<BlurEffect>(rendering.blur).unwrap();
+                    let settings = &mut blur.settings;
+
                     w.ui.add(egui::Slider::new(&mut settings.spacing, 0.0..=4.0)
                         .text("Espacement (pixels)"));
+
                     w.ui.add(egui::Slider::new(&mut settings.radius, 0..=crate::effects::blur::MAX_BLUR_RADIUS as u32)
                         .text("Rayon (voisins par côté)"));
+
                     w.ui.label(format!("{} échantillons par pixel et par passe", 2 * settings.radius + 1));
+
                     w.ui.checkbox(&mut settings.manual, "Poids manuels");
+
                     w.ui.add_enabled_ui(!settings.manual, |ui| {
                         ui.add(egui::Slider::new(&mut settings.sigma, 0.05..=16.0)
                             .logarithmic(true).text("Sigma (étalement gaussien)"));
                     });
+
                     w.ui.checkbox(&mut settings.normalize, "Normaliser les poids");
+
                     if !settings.normalize {
                         w.ui.small("Sans normalisation, la luminosité et l'opacité changent aussi.");
                     }
+
                     w.ui.small("Rayon ou espacement à 0 : aucun étalement. Chaque poids voisin est appliqué des deux côtés.");
+
                     if settings.manual && w.button("Charger les poids gaussiens depuis sigma").clicked() {
                         settings.generate_gaussian();
                     }
+
                     w.ui.collapsing("Poids du noyau", |ui| {
                         let effective = settings.params([1.0, 0.0]);
                         for distance in 0..=settings.radius as usize {
@@ -123,6 +137,7 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                             });
                         }
                     });
+
                     if w.button("Réinitialiser le flou").clicked() {
                         *settings = Default::default();
                     }
@@ -135,6 +150,7 @@ pub fn run(dm: &DebugManager, rs: &Resources) {
                     let rend = rs.read_resource::<SceneRendering>();
                     let Scene {data, ..} = &mut *velum.scene_mut(rend.scene).unwrap();
                     let instances = data.get_mut(rend.instances).unwrap();
+
                     egui::ScrollArea::vertical()
                         .max_height(280.0)
                         .show(w.ui, |ui| {

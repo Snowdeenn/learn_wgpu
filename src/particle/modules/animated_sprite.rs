@@ -6,7 +6,10 @@ use super::{ParticleMask, ParticleSpriteInstance, RenderModule, RenderModuleOutp
 use crate::backend::{RenderInstance, Sprite, texture::TextureResource};
 use crate::particle::data::{Access, ParticleView};
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct RenderAnimatedSprite {
     pub texture: Id<TextureResource>,
     pub indices: Range<u32>,

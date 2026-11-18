@@ -5,8 +5,8 @@
 //! simplify the process and fall back to a set of reasonable defaults.
 #![allow(unused)]
 
-mod context;
 pub mod compute;
+mod context;
 pub mod storage;
 pub use context::*;
 pub use storage::{DrawPipeline, PipelineId, get, register, remove};

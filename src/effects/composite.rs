@@ -1,4 +1,3 @@
-use crate::core::OwnedResource;
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding, TextureBindingSetId},
@@ -6,11 +5,14 @@ use crate::backend::{
     pipeline::{self, PipelineId},
     target::{self, RenderTargetId},
 };
+use crate::core::OwnedResource;
 
 crate::define_pipeline_context!(Composition);
 pub struct CompositeEffect {
     pub pipeline: OwnedResource<PipelineId<CompositionPipelineContext>>,
     pub source: OwnedResource<TextureBindingSetId>,
+    input: RenderTargetId,
+    sampler: wgpu::Sampler,
 }
 impl CompositeEffect {
     pub fn new(source: RenderTargetId, format: wgpu::TextureFormat) -> Self {
@@ -58,7 +60,33 @@ impl CompositeEffect {
         Self {
             pipeline: composition,
             source: composition_binding,
+            input: source,
+            sampler: sampler.as_raw().clone(),
         }
+    }
+
+    pub fn set_source(
+        &mut self,
+        input: RenderTargetId,
+    ) -> Result<(), binding_set::BindingSetError> {
+        if input == self.input {
+            return Ok(());
+        }
+        binding_set::update(
+            self.source.id(),
+            vec![
+                TextureBinding::Texture {
+                    binding: 0,
+                    target: input,
+                },
+                TextureBinding::Sampler {
+                    binding: 1,
+                    sampler: self.sampler.clone(),
+                },
+            ],
+        )?;
+        self.input = input;
+        Ok(())
     }
 }
 crate::define_render_operation! {

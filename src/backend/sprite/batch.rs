@@ -18,7 +18,11 @@ pub fn batch<T: SpriteInstance>(
 }
 
 /// Groups only consecutive compatible sprites; never sorts the source list.
-pub fn batch_into<T: SpriteInstance>(instances: &[T], instance_range: std::ops::Range<u32>, batches: &mut Vec<Batch>) {
+pub fn batch_into<T: SpriteInstance>(
+    instances: &[T],
+    instance_range: std::ops::Range<u32>,
+    batches: &mut Vec<Batch>,
+) {
     let start = instance_range.start;
     let slice = &instances[start as usize..instance_range.end as usize];
     batches.clear();
@@ -42,7 +46,6 @@ pub fn batch_into<T: SpriteInstance>(instances: &[T], instance_range: std::ops::
             range: index..index + 1,
         });
     }
-
 }
 
 fn sort_key<T: SpriteInstance>(inst: &T) -> (Id<TextureResource>, u32, u32) {

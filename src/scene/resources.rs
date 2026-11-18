@@ -1,13 +1,14 @@
+use crate::api::scene_renderer::EffectId;
 use super::instance::Dummy;
-use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
 use crate::api::scene::{RenderDataId, SceneId};
+use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
 use crate::backend::shape::MeshResource;
 use crate::geometry::mesh::Vertex;
 use math::Mat4;
 use new_collection::Id;
 
-use crate::backend::pipeline::PipelineId;
 use crate::backend;
+use crate::backend::pipeline::PipelineId;
 
 crate::unique_resource!(CamBuffer, Buffer<Mat4, Uniform>);
 crate::unique_resource!(InstanceBuffer, Buffer<crate::backend::RenderInstance, StorageRead>);
@@ -77,7 +78,8 @@ pub struct SceneRendering {
     pub mode: RenderDataId<ScenePipeline>,
     pub instances: RenderDataId<InstanceData>,
     pub texts: RenderDataId<Vec<backend::text::Text>>,
-    pub blur: crate::effects::blur::BlurEffect,
+    pub blur: EffectId,
+    pub composition: RenderDataId<crate::effects::composite::CompositeEffect>,
 }
 
 #[derive(Clone, Copy)]

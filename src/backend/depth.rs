@@ -1,5 +1,5 @@
-use crate::core::OwnedResource;
 use super::target::{self, RenderTargetDescriptor, RenderTargetId, TargetSize};
+use crate::core::OwnedResource;
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub fn depth_from_ground_y(y: f32, min_y: f32, max_y: f32) -> f32 {
     assert!(y.is_finite() && min_y.is_finite() && max_y.is_finite() && max_y > min_y);

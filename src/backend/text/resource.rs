@@ -12,7 +12,9 @@ pub struct TextResource {
 pub type TextId = Id<TextResource>;
 
 impl ResourceHandle for TextId {
-    fn release(self) { let _ = remove(self); }
+    fn release(self) {
+        let _ = remove(self);
+    }
 }
 
 /// Metrics are logical pixels for screen instances and world units for world instances.
@@ -116,7 +118,10 @@ impl TextResource {
         Ok(Self { buffer })
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub(super) fn set_text(&mut self, content: &str) {
         // Keep style and alignment in the Buffer, even when replacing empty text.
         let line = self
@@ -130,7 +135,10 @@ impl TextResource {
             .set_text(content, &attrs.as_attrs(), Shaping::Advanced, alignment);
     }
 
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub(super) fn set_layout(&mut self, layout: TextLayout) -> Result<(), TextError> {
         layout.validate()?;
         self.buffer.set_metrics_and_size(
@@ -163,7 +171,10 @@ pub fn register(description: TextDescription<'_>) -> Result<OwnedResource<TextId
     Ok(OwnedResource::new(context.texts.insert(text)))
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn set_text(id: TextId, content: &str) -> Result<(), TextError> {
     let mut context = context::try_context()?;
     context
@@ -174,7 +185,10 @@ pub fn set_text(id: TextId, content: &str) -> Result<(), TextError> {
     Ok(())
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn set_layout(id: TextId, layout: TextLayout) -> Result<(), TextError> {
     let mut context = context::try_context()?;
     context
@@ -184,12 +198,15 @@ pub fn set_layout(id: TextId, layout: TextLayout) -> Result<(), TextError> {
         .set_layout(layout)
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub fn remove(id: TextId) -> Result<(), TextError> {
     let mut context = context::try_context()?;
-    if context.texts.get(id).is_none() { return Err(TextError::InvalidId(id)); }
-    context.texts
-        .remove(id)
-        .ok_or(TextError::InvalidId(id))?;
+    if context.texts.get(id).is_none() {
+        return Err(TextError::InvalidId(id));
+    }
+    context.texts.remove(id).ok_or(TextError::InvalidId(id))?;
     Ok(())
 }

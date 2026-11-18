@@ -1,6 +1,9 @@
 mod storage;
 
-#[allow(unused_imports, reason = "Reexport de l'API du moteur, non utilise par la scene actuelle.")]
+#[allow(
+    unused_imports,
+    reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
+)]
 pub use storage::{RenderTargetId, get, register, remove, resize_window_targets};
 
 use crate::backend::texture::TextureBuilder;
@@ -15,9 +18,18 @@ pub struct RenderTarget {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetSize {
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
-    Fixed { width: u32, height: u32 },
-    Window { width: u32, height: u32 },
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
+    Fixed {
+        width: u32,
+        height: u32,
+    },
+    Window {
+        width: u32,
+        height: u32,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]

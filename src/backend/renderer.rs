@@ -1,4 +1,5 @@
 use crate::api::scene::RenderData;
+use crate::backend::pass::PassList;
 use std::sync::Arc;
 
 use winit::window::Window;
@@ -170,7 +171,7 @@ pub struct Frame<'a> {
 impl<'a> Frame<'a> {
     pub fn execute(
         &mut self,
-        passes: &mut [super::pass::PassContext],
+        passes: &mut PassList,
         data: &mut RenderData,
     ) -> Result<(), super::pass::PassError> {
         super::pass::execute(passes, &mut self.encoder, &self.view, data)

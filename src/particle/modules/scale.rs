@@ -1,7 +1,10 @@
-use crate::particle::data::{Access, ParticleView};
 use super::{InitModule, ParticleMask, UpdateModule, sample_uniform};
+use crate::particle::data::{Access, ParticleView};
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct InitScale {
     pub min: f32,
     pub max: f32,
@@ -25,7 +28,10 @@ impl InitModule for InitScale {
     }
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct UpdateScale {
     pub rate: [f32; 2],
 }

@@ -1,8 +1,8 @@
-use crate::core::OwnedResource;
+use super::{EffectError, EffectInputDesc, EffectInputKind, RenderEffect};
 use crate::backend::{
     self,
     binding_set::{self, TextureBinding, TextureBindingSetId},
-    pass::PassError,
+    pass::{self, PassError, PassList},
     pipeline::{self, PipelineId},
     target::{self, RenderTargetId},
 };
@@ -10,8 +10,14 @@ use crate::backend::{
     buffer::{self, Buffer, Uniform},
     target::{RenderTargetDescriptor, TargetSize},
 };
+use crate::core::OwnedResource;
 crate::define_pipeline_context!(Blur);
 pub const MAX_BLUR_RADIUS: usize = 16;
+
+#[cfg(test)]
+mod gpu_tests;
+#[cfg(test)]
+pub(crate) use gpu_tests::gpu_regression;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct BlurSettings {
@@ -130,8 +136,18 @@ pub struct BlurEffect {
     prev_settings: BlurSettings,
     vertical_params: OwnedResource<Buffer<BlurParams, Uniform>>,
     horizontal_params: OwnedResource<Buffer<BlurParams, Uniform>>,
+    passes: PassList,
+    input: Option<RenderTargetId>,
+    input_dirty: bool,
+    sampler: wgpu::Sampler,
 }
 impl BlurEffect {
+    pub const SOURCE: &'static str = "source";
+    const INPUTS: [EffectInputDesc; 1] = [EffectInputDesc {
+        name: Self::SOURCE,
+        required: true,
+        kind: EffectInputKind::Color,
+    }];
     pub fn new(format: wgpu::TextureFormat, resolution: [u32; 2]) -> Self {
         let blur_target_a = target::register(RenderTargetDescriptor {
             label: "Blur A",
@@ -140,7 +156,9 @@ impl BlurEffect {
                 height: resolution[1],
             },
             format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC,
             sample_count: 1, // jsp combien et ce que ça modifie
         });
 
@@ -151,7 +169,9 @@ impl BlurEffect {
                 height: resolution[1],
             },
             format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC,
             sample_count: 1, // jsp combien et ce que ça modifie
         });
 
@@ -227,6 +247,28 @@ impl BlurEffect {
         )
         .unwrap();
 
+        let mut passes = PassList::new();
+        passes.insert(pass::render(
+            blur_target_b.id(),
+            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            BlurHorizontalOperation {
+                pipeline: blur_pipeline.id(),
+                source: blur_binding_a.id(),
+                direction: horizontal_group.clone(),
+            },
+            true,
+        ));
+        passes.insert(pass::render(
+            blur_target_a.id(),
+            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            BlurVerticalOperation {
+                pipeline: blur_pipeline.id(),
+                source: blur_binding_b.id(),
+                direction: vertical_group.clone(),
+            },
+            true,
+        ));
+
         Self {
             target_a: blur_target_a,
             target_b: blur_target_b,
@@ -239,9 +281,13 @@ impl BlurEffect {
             prev_settings: blur_settings,
             vertical_params: vertical_unif,
             horizontal_params: horizontal_unif,
+            passes,
+            input: None,
+            input_dirty: false,
+            sampler: blur_sampler.as_raw().clone(),
         }
     }
-    pub fn prepare(&mut self) {
+    fn prepare_settings(&mut self) {
         if self.settings == self.prev_settings {
             return;
         }
@@ -254,16 +300,106 @@ impl BlurEffect {
 
         self.prev_settings = self.settings;
 
-        backend::write_buffer(
-            &self.vertical_params,
-            0,
-            &[vertical],
-        );
-        backend::write_buffer(
-            &self.horizontal_params,
-            0,
-            &[horizontal],
-        );
+        backend::write_buffer(&self.vertical_params, 0, &[vertical]);
+        backend::write_buffer(&self.horizontal_params, 0, &[horizontal]);
+    }
+}
+
+impl RenderEffect for BlurEffect {
+    fn inputs(&self) -> &[EffectInputDesc] {
+        &Self::INPUTS
+    }
+
+    fn set_input(&mut self, name: &str, target: RenderTargetId) -> Result<(), EffectError> {
+        if name != Self::SOURCE {
+            return Err(EffectError::UnknownInput(name.to_owned()));
+        }
+        self.validate_input(target)?;
+        if self.input != Some(target) {
+            self.input = Some(target);
+            self.input_dirty = true;
+        }
+        Ok(())
+    }
+
+    fn prepare(&mut self) -> Result<(), EffectError> {
+        let input = self
+            .input
+            .ok_or_else(|| EffectError::MissingInput(Self::SOURCE.to_owned()))?;
+        self.validate_input(input)?;
+        if self.input_dirty {
+            binding_set::update(
+                self.source_a.id(),
+                vec![
+                    TextureBinding::Texture {
+                        binding: 0,
+                        target: input,
+                    },
+                    TextureBinding::Sampler {
+                        binding: 1,
+                        sampler: self.sampler.clone(),
+                    },
+                ],
+            )
+            .map_err(|error| EffectError::IncompatibleInput {
+                name: Self::SOURCE.to_owned(),
+                reason: error.to_string(),
+            })?;
+            self.input_dirty = false;
+        }
+        self.prepare_settings();
+        Ok(())
+    }
+
+    fn output(&self) -> RenderTargetId {
+        self.target_a.id()
+    }
+    fn bypass_input(&self) -> Option<&str> {
+        Some(Self::SOURCE)
+    }
+    fn passes(&self) -> &PassList {
+        &self.passes
+    }
+    fn passes_mut(&mut self) -> &mut PassList {
+        &mut self.passes
+    }
+}
+
+impl BlurEffect {
+    fn validate_input(&self, input: RenderTargetId) -> Result<(), EffectError> {
+        let incompatible = |reason: &str| EffectError::IncompatibleInput {
+            name: Self::SOURCE.to_owned(),
+            reason: reason.to_owned(),
+        };
+        if input == self.target_a.id() || input == self.target_b.id() {
+            return Err(incompatible(
+                "Source must be distinct from both private blur targets",
+            ));
+        }
+        let source = target::get(input).ok_or(EffectError::MissingTarget(input))?;
+        let texture = source.texture().as_raw();
+        if texture.dimension() != wgpu::TextureDimension::D2
+            || texture.depth_or_array_layers() != 1
+            || texture.sample_count() != 1
+            || !texture
+                .usage()
+                .contains(wgpu::TextureUsages::TEXTURE_BINDING)
+            || texture.format().sample_type(None, None)
+                != Some(wgpu::TextureSampleType::Float { filterable: true })
+        {
+            return Err(incompatible(
+                "Source must be a filterable, single-sample 2D color texture with TEXTURE_BINDING usage",
+            ));
+        }
+        for id in [self.target_a.id(), self.target_b.id()] {
+            let output = target::get(id).ok_or(EffectError::MissingTarget(id))?;
+            if source.size() != output.size() {
+                return Err(incompatible(
+                    "Source and blur targets must have matching dimensions",
+                ));
+            }
+        }
+        Ok(())
     }
 }
 crate::define_render_operation! {

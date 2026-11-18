@@ -1,6 +1,6 @@
-use crate::core::OwnedResource;
 use super::{AtlasRegion, Texture, TextureBuilder, TextureResource};
 use crate::backend::{context, sampler};
+use crate::core::OwnedResource;
 use image::GenericImageView;
 use new_collection::{Arena, Id};
 
@@ -161,7 +161,9 @@ pub fn load_texture_array(
         },
     ))
 }
-pub fn register_texture(raw: wgpu::Texture) -> (OwnedResource<Id<TextureResource>>, wgpu::BindGroupLayout) {
+pub fn register_texture(
+    raw: wgpu::Texture,
+) -> (OwnedResource<Id<TextureResource>>, wgpu::BindGroupLayout) {
     let tex = Texture::from_raw(raw);
     let sampler = sampler::filtering("");
     let (lay, group) = crate::bind_group! {

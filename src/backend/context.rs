@@ -2,6 +2,7 @@ use new_collection::{Arena, Id};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use crate::backend::buffer::BufferArena;
+use crate::{OwnedResource, ResourceHandle};
 
 use super::texture::TextureResource;
 
@@ -19,6 +20,12 @@ pub struct Context {
 pub struct ContextId {
     raw: Id<Arc<Context>>,
     uid: u64,
+}
+
+impl ResourceHandle for ContextId {
+    fn release(self) {
+        remove(self);
+    }
 }
 
 pub fn next_id() -> u64 {
@@ -65,17 +72,21 @@ fn contexts() -> &'static RwLock<Arena<Arc<Context>>> {
     CONTEXTS.get_or_init(|| RwLock::new(Arena::new()))
 }
 
-pub fn create(adapter: &wgpu::Adapter) -> Result<ContextId, InitError> {
+pub fn create(adapter: &wgpu::Adapter) -> Result<OwnedResource<ContextId>, InitError> {
     let new_context = Context::init(adapter)?;
     let raw = {
         let mut ctxs = contexts().write().unwrap();
         ctxs.insert(Arc::new(new_context))
     };
 
-    Ok(ContextId {
+    Ok(OwnedResource::new(ContextId {
         raw,
         uid: next_id(),
-    })
+    }))
+}
+
+pub fn remove(id: ContextId) -> Option<Arc<Context>> {
+    contexts().write().unwrap().remove(id.raw)
 }
 
 #[derive(Debug)]

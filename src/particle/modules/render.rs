@@ -8,9 +8,12 @@ use crate::backend::{RenderInstance, Sprite};
 use crate::particle::data::{Access, ParticleView};
 use crate::particle::modules::RenderModuleOutput;
 
-use super::{ParticleMask, ParticleSpriteInstance, ParticleShapeInstance, RenderModule};
+use super::{ParticleMask, ParticleShapeInstance, ParticleSpriteInstance, RenderModule};
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct RenderSprite {
     pub texture: Id<TextureResource>,
     pub indices: Range<u32>,
@@ -54,7 +57,10 @@ impl RenderModule for RenderSprite {
 
 pub struct RenderShape {
     pub mesh: Id<MeshResource>,
-    #[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+    #[allow(
+        dead_code,
+        reason = "API du moteur conservee pour les autres scenes et modules."
+    )]
     pub indices: Range<u32>,
 }
 

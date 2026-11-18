@@ -22,19 +22,31 @@ pub fn snapshot() -> RenderMetrics {
 }
 
 pub(super) fn batch() {
-    FRAME.update(|mut m| { m.batches += 1; m });
+    FRAME.update(|mut m| {
+        m.batches += 1;
+        m
+    });
 }
 
 pub(crate) fn draw() {
-    FRAME.update(|mut m| { m.draw_calls += 1; m });
+    FRAME.update(|mut m| {
+        m.draw_calls += 1;
+        m
+    });
 }
 
 pub(super) fn allocation() {
-    FRAME.update(|mut m| { m.instance_allocations += 1; m });
+    FRAME.update(|mut m| {
+        m.instance_allocations += 1;
+        m
+    });
 }
 
 pub(super) fn upload(bytes: u64) {
-    FRAME.update(|mut m| { m.uploaded_bytes += bytes; m });
+    FRAME.update(|mut m| {
+        m.uploaded_bytes += bytes;
+        m
+    });
 }
 
 #[cfg(test)]
@@ -57,6 +69,9 @@ mod tests {
         assert_eq!(m.uploaded_bytes, 6_400_000);
         reset();
         let m = snapshot();
-        assert_eq!(m.batches + m.draw_calls + m.instance_allocations + m.uploaded_bytes, 0);
+        assert_eq!(
+            m.batches + m.draw_calls + m.instance_allocations + m.uploaded_bytes,
+            0
+        );
     }
 }

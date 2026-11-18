@@ -1,5 +1,6 @@
 use crate::api::scene::RenderDataError;
 use crate::backend::phase::DrawError;
+use crate::effects::EffectError;
 mod builder;
 mod list;
 mod macros;
@@ -9,7 +10,7 @@ mod tests;
 
 pub use crate::backend::target::PassTarget;
 pub use builder::*;
-pub use list::{PassList, execute};
+pub use list::{PassList, execute, execute_one};
 #[allow(
     unused_imports,
     reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
@@ -25,6 +26,7 @@ pub enum PassContext {
         store: wgpu::StoreOp,
         depth: Option<RenderTargetId>,
         operation: Box<dyn RenderOperation>,
+        active: bool,
     },
     #[allow(
         dead_code,
@@ -32,6 +34,7 @@ pub enum PassContext {
     )]
     Compute {
         operation: Box<dyn ComputeOperation>,
+        active: bool,
     },
 }
 
@@ -39,6 +42,7 @@ pub fn render(
     target: impl Into<PassTarget>,
     load: wgpu::LoadOp<wgpu::Color>,
     operation: impl RenderOperation + 'static,
+    active: bool,
 ) -> PassContext {
     PassContext::Render {
         target: target.into(),
@@ -46,6 +50,7 @@ pub fn render(
         store: wgpu::StoreOp::Store,
         depth: None,
         operation: Box::new(operation),
+        active,
     }
 }
 
@@ -53,14 +58,17 @@ pub fn render(
     dead_code,
     reason = "API du moteur conservee pour les autres scenes et modules."
 )]
-pub fn compute(operation: impl ComputeOperation + 'static) -> PassContext {
+pub fn compute(operation: impl ComputeOperation + 'static, active: bool) -> PassContext {
     PassContext::Compute {
         operation: Box::new(operation),
+        active,
     }
 }
 
 #[derive(Debug)]
 pub enum PassError {
+    Schedule(crate::api::scene_renderer::ScheduleError),
+    Effect(EffectError),
     Draw(DrawError),
     Instances(crate::backend::instances::InstanceError),
     InvalidDepthTarget(RenderTargetId),
@@ -77,6 +85,8 @@ pub enum PassError {
 impl std::fmt::Display for PassError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Schedule(error) => error.fmt(f),
+            Self::Effect(error) => error.fmt(f),
             Self::Draw(error) => error.fmt(f),
             Self::Instances(error) => error.fmt(f),
             Self::InvalidDepthTarget(id) => write!(f, "Invalid or mismatched depth target: {id}"),
@@ -103,6 +113,8 @@ impl From<RenderDataError> for PassError {
 impl std::error::Error for PassError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Schedule(error) => Some(error),
+            Self::Effect(error) => Some(error),
             Self::Draw(error) => Some(error),
             Self::Instances(error) => Some(error),
             Self::Data(error) => Some(error),
@@ -111,6 +123,10 @@ impl std::error::Error for PassError {
             _ => None,
         }
     }
+}
+
+impl From<EffectError> for PassError {
+    fn from(error: EffectError) -> Self { Self::Effect(error) }
 }
 
 impl From<DrawError> for PassError {

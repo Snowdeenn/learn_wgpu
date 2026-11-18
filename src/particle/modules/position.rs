@@ -1,9 +1,12 @@
 use crate::particle::data::{Access, ParticleView};
-use crate::particle::modules::{UpdateModule};
+use crate::particle::modules::UpdateModule;
 
 use super::{InitModule, ParticleMask};
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct InitPos {
     pub min: f32,
     pub max: f32,
@@ -29,7 +32,10 @@ impl InitModule for InitPos {
     }
 }
 
-#[allow(dead_code, reason = "API du moteur conservee pour les autres scenes et modules.")]
+#[allow(
+    dead_code,
+    reason = "API du moteur conservee pour les autres scenes et modules."
+)]
 pub struct UpdatePos;
 
 impl UpdateModule for UpdatePos {

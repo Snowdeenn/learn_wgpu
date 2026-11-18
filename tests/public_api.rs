@@ -1,29 +1,59 @@
-use velum::{RenderData, Scene, SceneError, Velum, scene};
 use velum::backend::pass::{PassError, RenderOperation};
+use velum::{RenderData, Scene, SceneError, Velum, scene_renderer};
 
 #[test]
 fn draw_sort_metadata_supports_default_depth_and_custom_order() {
-    use velum::backend::{DrawSortKey, RenderInstance, instances::Instance, shape::{MeshResource, ShapeInstance}};
     use new_collection::Id;
+    use velum::backend::{
+        DrawSortKey, RenderInstance,
+        instances::Instance,
+        shape::{MeshResource, ShapeInstance},
+    };
 
     struct DefaultObject;
     impl Instance for DefaultObject {}
     impl ShapeInstance for DefaultObject {
-        fn mesh(&self) -> Id<MeshResource> { panic!("Sorting does not resolve the mesh") }
+        fn mesh(&self) -> Id<MeshResource> {
+            panic!("Sorting does not resolve the mesh")
+        }
         fn render_instance(&self) -> RenderInstance {
-            RenderInstance { depth: 0.25, ..bytemuck::Zeroable::zeroed() }
+            RenderInstance {
+                depth: 0.25,
+                ..bytemuck::Zeroable::zeroed()
+            }
         }
     }
-    assert_eq!(DefaultObject.sort_key(), DrawSortKey { draw_order: 0, depth: 0.25 });
+    assert_eq!(
+        DefaultObject.sort_key(),
+        DrawSortKey {
+            draw_order: 0,
+            depth: 0.25
+        }
+    );
 
     struct OrderedObject;
     impl Instance for OrderedObject {}
     impl ShapeInstance for OrderedObject {
-        fn mesh(&self) -> Id<MeshResource> { panic!("Not needed") }
-        fn render_instance(&self) -> RenderInstance { panic!("Custom keys bypass GPU conversion") }
-        fn sort_key(&self) -> DrawSortKey { DrawSortKey { draw_order: 10, depth: 0.75 } }
+        fn mesh(&self) -> Id<MeshResource> {
+            panic!("Not needed")
+        }
+        fn render_instance(&self) -> RenderInstance {
+            panic!("Custom keys bypass GPU conversion")
+        }
+        fn sort_key(&self) -> DrawSortKey {
+            DrawSortKey {
+                draw_order: 10,
+                depth: 0.75,
+            }
+        }
     }
-    assert_eq!(OrderedObject.sort_key(), DrawSortKey { draw_order: 10, depth: 0.75 });
+    assert_eq!(
+        OrderedObject.sort_key(),
+        DrawSortKey {
+            draw_order: 10,
+            depth: 0.75
+        }
+    );
 }
 
 #[test]
@@ -41,7 +71,10 @@ fn global_resource_handles_support_ownership() {
 }
 
 fn empty_scene() -> Scene {
-    Scene { renderer: scene::renderer().build(), data: RenderData::new() }
+    Scene {
+        renderer: scene_renderer::renderer().build(),
+        data: RenderData::new(),
+    }
 }
 
 #[test]
@@ -49,12 +82,22 @@ fn scene_selection_is_validated_and_preserves_state() {
     let mut velum = Velum::new();
     let world = velum.add_scene(empty_scene());
     let menu = velum.add_scene(empty_scene());
-    let value = velum.scene_mut(world).unwrap().data.insert(String::from("world"));
+    let value = velum
+        .scene_mut(world)
+        .unwrap()
+        .data
+        .insert(String::from("world"));
     velum.activate(world).unwrap();
     velum.remove_scene(menu).unwrap();
-    assert!(matches!(velum.activate(menu), Err(SceneError::MissingScene(_))));
+    assert!(matches!(
+        velum.activate(menu),
+        Err(SceneError::MissingScene(_))
+    ));
     assert_eq!(velum.active_scene(), Some(world));
-    assert_eq!(velum.scene(world).unwrap().data.require(value).unwrap(), "world");
+    assert_eq!(
+        velum.scene(world).unwrap().data.require(value).unwrap(),
+        "world"
+    );
     velum.deactivate();
     assert_eq!(velum.active_scene(), None);
     velum.activate(world).unwrap();
@@ -84,18 +127,25 @@ fn typed_inputs_are_independent_and_missing_inputs_are_diagnostic() {
 // Compile the custom-operation and pass API as an external consumer.
 struct CustomOperation;
 impl RenderOperation for CustomOperation {
-    fn execute(&mut self, _: &mut wgpu::RenderPass<'_>, _: &mut RenderData) -> Result<(), PassError> {
+    fn execute(
+        &mut self,
+        _: &mut wgpu::RenderPass<'_>,
+        _: &mut RenderData,
+    ) -> Result<(), PassError> {
         Ok(())
     }
 }
 
 #[test]
 fn renderer_builder_accepts_backend_passes() {
-    let _renderer = scene::renderer()
-        .add_pass(velum::backend::pass::render(
-            velum::backend::pass::PassTarget::Surface,
-            wgpu::LoadOp::Load,
-            CustomOperation,
-        ))
-        .build();
+    let mut builder = scene_renderer::renderer();
+    let pass = builder.add_pass(velum::backend::pass::render(
+        velum::backend::pass::PassTarget::Surface,
+        wgpu::LoadOp::Load,
+        CustomOperation,
+        true,
+    ));
+    let mut renderer = builder.build();
+    renderer.deactivate_pass(pass);
+    renderer.activate_pass(pass);
 }
