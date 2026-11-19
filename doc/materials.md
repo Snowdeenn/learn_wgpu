@@ -92,6 +92,12 @@ historiques de définition de contexte et d'opération restent utilisables.
 `pipeline::try_compute` et `pipeline::dispatch` utilisent les mêmes schémas et
 la même résolution ; le contexte satisfait aussi `ComputePipelineContext`.
 
+La liaison graphique est centralisée dans `pipeline::bind_resolved` : pipeline,
+groupes et offsets dynamiques, slots de vertex buffers et slices bornés, puis
+index buffer et format. `backend::bind` adapte les contextes historiques à cette
+fonction, et les objets préparés l'utilisent directement après validation.
+La signature de `bind` et ses conventions historiques restent inchangées.
+
 La résolution joint les contributions communes à la phase/contexte, celles
 du matériau, celles de l'objet, puis le stream d'instances. Deux contributions
 au même `(groupe, binding)` produisent une erreur. Un objet peut demander une

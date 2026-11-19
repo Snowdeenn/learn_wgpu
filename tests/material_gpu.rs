@@ -129,6 +129,7 @@ fn described_rendering_resources_ranges_phases_resize_compute_and_reporting() {
     context::init(&adapter).unwrap();
     custom_instances_and_ownership();
     dynamic_bindings_and_transactional_updates();
+    graphics_dynamic_offsets();
     geometry_regions_and_vertex_instances();
     standard_materials_particles_and_cameras();
     sprite_kinds_and_stable_blending();
@@ -604,6 +605,60 @@ fn dynamic_bindings_and_transactional_updates() {
     assert!(result.is_err());
     assert_eq!(bindings::get(set.id()).unwrap().entries.len(), 1);
 }
+fn graphics_dynamic_offsets() {
+    let alignment = context::device(None)
+        .limits()
+        .min_uniform_buffer_offset_alignment as u64;
+    let _prefix = buffer::uniform::<[f32; 4]>(1).unwrap();
+    let buffer = buffer::uniform::<[f32; 4]>((alignment + 16).div_ceil(16)).unwrap();
+    buffer::write_buffer(&buffer, 0, &[[1., 0., 0., 1.]]);
+    buffer::write_buffer(&buffer, alignment, &[[0., 1., 0., 1.]]);
+    let region = BufferRegion::from_shared(buffer.share()).unwrap();
+    assert!(region.raw_region().1.start > 0);
+    let set = bindings::try_register(BindingSet {
+        context: None,
+        group: 2,
+        entries: vec![(7, BindingResource::Buffer { region, size: 16 })],
+    })
+    .unwrap();
+    let shader = velum::backend::try_shader(
+        None,
+        "graphics dynamic offsets",
+        r#"
+@group(2) @binding(7) var<uniform> color: vec4f;
+@vertex fn vs_main(@builtin(vertex_index) i:u32)->@builtin(position) vec4f {
+    var p=array<vec2f,3>(vec2f(-1.,-1.),vec2f(3.,-1.),vec2f(-1.,3.));
+    return vec4f(p[i],0.,1.);
+}
+@fragment fn fs_main()->@location(0) vec4f {return color;}
+"#,
+    )
+    .unwrap();
+    let mut description = MaterialTemplate::fullscreen(
+        None,
+        "graphics dynamic offsets",
+        shader,
+        wgpu::TextureFormat::Rgba8Unorm,
+    );
+    description.schema = velum::binding_schema! { 2 => [bindings::buffer_entry(7, wgpu::ShaderStages::FRAGMENT, wgpu::BufferBindingType::Uniform, 16, true)] };
+    let template = material::try_template(description).unwrap().share();
+    let material = material::try_register(Material {
+        template,
+        bindings: vec![],
+    })
+    .unwrap();
+    let geometry = geometry::try_register(Geometry::generated(None, 0..3)).unwrap();
+    let mut object = RenderObject::new(geometry.id(), material.id());
+    object
+        .bindings
+        .push(BindingUse::from(set.id()).with_offsets(vec![alignment as u32]));
+    let mut phase = RenderPhase::new(PhaseId::OPAQUE, SortPolicy::PreserveOrder);
+    phase.push(object);
+    let texture = output(4, 4);
+    assert_eq!(render(&texture, phase).draw_calls, 1);
+    assert_eq!(pixel(&texture), [0, 255, 0, 255]);
+}
+
 fn geometry_regions_and_vertex_instances() {
     let poison = buffer::vertex::<[f32; 2]>(3).unwrap();
     buffer::write_buffer(&poison, 0, &[[100.; 2]; 3]);

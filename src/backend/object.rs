@@ -249,29 +249,37 @@ impl PreparedDraw {
                 .flat_map(|g| g._resources.iter().cloned())
                 .collect::<Vec<_>>(),
         ));
-        pass.set_pipeline(&pipeline.pipeline);
-        for group in &self.groups {
-            pass.set_bind_group(group.index, &group.group, &group.offsets);
-        }
-        for vertex in &self.geometry.vertices {
-            pass.set_vertex_buffer(
+        let vertices = self.geometry.vertices.iter().map(|vertex| {
+            (
                 vertex.slot,
                 vertex.region.buffer.slice(vertex.region.bytes.clone()),
-            );
-        }
-        if let Some(stream) = &self.stream
-            && let InstanceBinding::Vertex { slot, .. } = stream.binding
-        {
-            pass.set_vertex_buffer(
-                slot,
-                stream.region.buffer.slice(stream.region.bytes.clone()),
-            );
-        }
-        if let Some(index) = &self.geometry.indices {
-            pass.set_index_buffer(
-                index.region.buffer.slice(index.region.bytes.clone()),
-                index.format,
-            );
+            )
+        });
+        let instance_vertex = self
+            .stream
+            .as_ref()
+            .and_then(|stream| match &stream.binding {
+                InstanceBinding::Vertex { slot, .. } => Some((
+                    *slot,
+                    stream.region.buffer.slice(stream.region.bytes.clone()),
+                )),
+                InstanceBinding::Storage { .. } => None,
+            });
+        super::pipeline::bind_resolved(
+            &pipeline.pipeline,
+            self.groups
+                .iter()
+                .map(|group| (group.index, &group.group, group.offsets.as_slice())),
+            vertices.chain(instance_vertex),
+            self.geometry.indices.as_ref().map(|index| {
+                (
+                    index.region.buffer.slice(index.region.bytes.clone()),
+                    index.format,
+                )
+            }),
+            pass,
+        );
+        if self.geometry.indices.is_some() {
             pass.draw_indexed(
                 self.geometry.elements.clone(),
                 self.geometry.base_vertex,
