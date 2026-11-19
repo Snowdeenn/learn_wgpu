@@ -419,6 +419,7 @@ crate::define_render_operation! {
         pass.set_bind_group(0, &group, &[]);
         pass.set_bind_group(1, &this.direction, &[]);
         crate::backend::metrics::draw();
+        crate::backend::report::record_instances(1);
         pass.draw(0..3, 0..1);
 
         Ok(())
@@ -442,6 +443,7 @@ crate::define_render_operation! {
         pass.set_bind_group(0, &group, &[]);
         pass.set_bind_group(1, &this.direction, &[]);
         crate::backend::metrics::draw();
+        crate::backend::report::record_instances(1);
         pass.draw(0..3, 0..1);
 
         Ok(())

@@ -1,6 +1,6 @@
 use crate::backend::DrawSortKey;
-use crate::core::OwnedResource;
 use crate::core::ResourceHandle;
+use crate::core::{OwnedResource, SharedResource};
 use std::ops::Range;
 use std::sync::{OnceLock, RwLock};
 
@@ -13,9 +13,10 @@ use crate::backend::instances::Instance;
 use crate::geometry::mesh::{Mesh, Vertex as MeshVertex};
 
 pub struct MeshResource {
-    vertices: OwnedResource<Buffer<MeshVertex, Vertex>>,
-    indices: OwnedResource<Buffer<u32, Index>>,
+    vertices: SharedResource<Buffer<MeshVertex, Vertex>>,
+    indices: SharedResource<Buffer<u32, Index>>,
     index_count: u32,
+    geometry: SharedResource<super::GeometryId>,
 }
 
 static MESHES: OnceLock<RwLock<Arena<MeshResource>>> = OnceLock::new();
@@ -67,6 +68,25 @@ pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
     };
     buffer::write_buffer(&vertices, 0, mesh.vertices());
     buffer::write_buffer(&indices, 0, mesh.indices());
+    let vertices = vertices.share();
+    let indices = indices.share();
+    let geometry = super::geometry::try_register(super::Geometry {
+        context: None,
+        vertices: vec![super::VertexBuffer {
+            slot: 0,
+            region: super::BufferRegion::from_shared(vertices.clone())
+                .expect("Valid mesh allocation"),
+        }],
+        indices: Some(super::IndexBuffer {
+            region: super::BufferRegion::from_shared(indices.clone())
+                .expect("Valid mesh allocation"),
+            format: wgpu::IndexFormat::Uint32,
+        }),
+        elements: 0..index_count,
+        base_vertex: 0,
+    })
+    .expect("Valid mesh geometry")
+    .share();
     let id = MESHES
         .get_or_init(Default::default)
         .write()
@@ -75,8 +95,14 @@ pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
             vertices,
             indices,
             index_count,
+            geometry,
         });
     OwnedResource::new(id)
+}
+
+/// Shared geometry for both the historical shape API and described materials.
+pub fn geometry(id: Id<MeshResource>) -> Option<SharedResource<super::GeometryId>> {
+    Some(MESHES.get()?.read().unwrap().get(id)?.geometry.clone())
 }
 
 pub trait ShapeInstance: Instance {
@@ -184,8 +210,8 @@ pub fn draw<T: ShapeInstance>(
         tracing::error!("Unknown mesh {:?}", batch.mesh);
         return Err(crate::backend::instances::InstanceError::MissingMesh);
     };
-    let (vertices, vertex_range) = mesh.vertices.raw_region();
-    let (indices, index_range) = mesh.indices.raw_region();
+    let (vertices, vertex_range) = mesh.vertices.id().raw_region();
+    let (indices, index_range) = mesh.indices.id().raw_region();
     pass.set_vertex_buffer(0, vertices.slice(vertex_range));
     pass.set_index_buffer(indices.slice(index_range), wgpu::IndexFormat::Uint32);
 
@@ -198,6 +224,7 @@ pub fn draw<T: ShapeInstance>(
         let group = cache::prepare_render_instances(render_instances, range)?;
         pass.set_bind_group(0, &group, &[]);
         crate::backend::metrics::draw();
+        crate::backend::report::record_instances(instance_count as u64);
         pass.draw_indexed(0..mesh.index_count, 0, 0..instance_count);
     }
     Ok(())

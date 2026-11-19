@@ -253,6 +253,8 @@ impl<'a> RenderPassBuilder<'a> {
             occlusion_query_set: None,
             multiview_mask: None,
         };
-        encoder.begin_render_pass(&descriptor)
+        let pass = encoder.begin_render_pass(&descriptor);
+        crate::backend::report::render_pass();
+        pass
     }
 }

@@ -72,6 +72,7 @@ impl<'a> Default for BufferBuilder<'a> {
 
 pub struct Buffer<T, K> {
     alloc_id: Id<Allocation>,
+    context: Option<context::ContextId>,
     _phantom: std::marker::PhantomData<(T, K)>,
 }
 
@@ -157,25 +158,39 @@ impl BufferKind for Vertex {
 }
 
 impl<T, K: BufferKind> Buffer<T, K> {
-    fn new(id: Id<Allocation>) -> Self {
+    fn new(id: Id<Allocation>, context: Option<context::ContextId>) -> Self {
         Buffer {
             alloc_id: id,
+            context,
             _phantom: std::marker::PhantomData,
         }
     }
 
     pub fn raw_region(&self) -> (wgpu::Buffer, std::ops::Range<u64>) {
-        let storage_owner = context::buffer(None);
+        self.try_raw_region().expect("Missing buffer allocation")
+    }
+
+    pub fn context_id(&self) -> Option<context::ContextId> {
+        self.context
+    }
+
+    pub fn try_raw_region(&self) -> Result<(wgpu::Buffer, std::ops::Range<u64>), RegionError> {
+        let ctx = context::try_context(self.context).ok_or(RegionError::MissingContext)?;
+        let storage_owner = &ctx.buffer;
         let arena = storage_owner.read().unwrap();
-        let alloc = arena.allocations.get(self.alloc_id).unwrap();
+        let alloc = arena
+            .allocations
+            .get(self.alloc_id)
+            .ok_or(BindingError::MissingAllocation)?;
         let buffer = arena.pages[alloc.page].buffer.clone();
-        (buffer, alloc.offset..alloc.offset + alloc.size)
+        Ok((buffer, alloc.offset..alloc.offset + alloc.size))
     }
 }
 
 impl<T, K: BindableBufferKind> Buffer<T, K> {
     pub fn resolve_binding(&self) -> Result<impl Bindable + use<T, K>, BindingError> {
-        let storage_owner = context::buffer(None);
+        let ctx = context::try_context(self.context).ok_or(BindingError::MissingAllocation)?;
+        let storage_owner = &ctx.buffer;
         let arena = storage_owner.read().unwrap();
         let allocation = arena
             .allocations
@@ -210,6 +225,26 @@ impl std::fmt::Display for BindingError {
     }
 }
 impl std::error::Error for BindingError {}
+
+#[derive(Debug)]
+pub enum RegionError {
+    MissingContext,
+    Binding(BindingError),
+}
+impl From<BindingError> for RegionError {
+    fn from(error: BindingError) -> Self {
+        Self::Binding(error)
+    }
+}
+impl std::fmt::Display for RegionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingContext => f.write_str("GPU context is missing"),
+            Self::Binding(e) => e.fmt(f),
+        }
+    }
+}
+impl std::error::Error for RegionError {}
 
 impl<K: BindableBufferKind> Bindable for ResolvedBuffer<K> {
     fn binding_type(&self) -> wgpu::BindingType {
@@ -291,7 +326,7 @@ where
     T: bytemuck::Pod,
     K: BufferKind + 'static,
 {
-    context::buffer(None)
+    context::buffer(buffer.context)
         .read()
         .unwrap()
         .write(buffer, offset, data);
@@ -302,8 +337,99 @@ where
     T: bytemuck::Pod,
     K: BufferKind + 'static,
 {
-    context::buffer(None).write().unwrap().deallocate(buffer);
+    if let Some(ctx) = context::try_context(buffer.context) {
+        ctx.buffer.write().unwrap().deallocate(buffer);
+    }
 }
+
+#[derive(Debug)]
+pub enum WriteError {
+    Binding(RegionError),
+    InvalidRange,
+    UnalignedTransfer,
+}
+impl std::fmt::Display for WriteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Binding(e) => e.fmt(f),
+            Self::InvalidRange => f.write_str("Write exceeds the allocated buffer region"),
+            Self::UnalignedTransfer => {
+                f.write_str("Buffer write offset and size must be multiples of four bytes")
+            }
+        }
+    }
+}
+impl std::error::Error for WriteError {}
+/// Fallible immediate upload, validating the allocation rather than the whole page.
+pub fn try_write_buffer<T: bytemuck::Pod, K: BufferKind>(
+    buffer: &Buffer<T, K>,
+    offset: u64,
+    values: &[T],
+) -> Result<(), WriteError> {
+    let (raw, range) = buffer.try_raw_region().map_err(WriteError::Binding)?;
+    let bytes = bytemuck::cast_slice(values);
+    if offset
+        .checked_add(bytes.len() as u64)
+        .is_none_or(|end| end > range.end - range.start)
+    {
+        return Err(WriteError::InvalidRange);
+    }
+    if offset % wgpu::COPY_BUFFER_ALIGNMENT != 0
+        || bytes.len() as u64 % wgpu::COPY_BUFFER_ALIGNMENT != 0
+    {
+        return Err(WriteError::UnalignedTransfer);
+    }
+    let ctx = context::try_context(buffer.context)
+        .ok_or(WriteError::Binding(RegionError::MissingContext))?;
+    ctx.queue.write_buffer(&raw, range.start + offset, bytes);
+    super::report::record_upload(bytes.len() as u64);
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BufferMemoryStats {
+    pub active_allocations: usize,
+    pub active_bytes: u64,
+    /// Allocator page capacity, including free space. Not physical GPU memory.
+    pub page_capacity_bytes: u64,
+}
+pub fn memory_stats(context_id: Option<context::ContextId>) -> Option<BufferMemoryStats> {
+    let ctx = context::try_context(context_id)?;
+    let arena = ctx.buffer.read().unwrap();
+    Some(BufferMemoryStats {
+        active_allocations: arena.allocations.iter().count(),
+        active_bytes: arena.allocations.iter().map(|a| a.size).sum(),
+        page_capacity_bytes: arena.pages.iter().map(|p| p.size).sum(),
+    })
+}
+
+/// Typed allocation on either the default or an explicitly registered context.
+pub fn allocate_in<T: bytemuck::Pod, K: BufferKind + 'static>(
+    context_id: Option<context::ContextId>,
+    capacity: u64,
+) -> Result<OwnedResource<Buffer<T, K>>, ContextAllocError> {
+    let ctx = context::try_context(context_id).ok_or(ContextAllocError::MissingContext)?;
+    ctx.buffer
+        .write()
+        .unwrap()
+        .allocate_in::<T, K>(capacity, context_id)
+        .map_err(ContextAllocError::Allocation)
+}
+
+#[derive(Debug)]
+pub enum ContextAllocError {
+    MissingContext,
+    Allocation(AllocError),
+}
+impl std::fmt::Display for ContextAllocError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingContext => f.write_str("GPU context is missing"),
+            Self::Allocation(e) => e.fmt(f),
+        }
+    }
+}
+impl std::error::Error for ContextAllocError {}
 
 #[derive(Debug)]
 pub(super) struct BufferPage {
@@ -379,7 +505,17 @@ impl BufferArena {
         T: bytemuck::Pod,
         K: BufferKind + 'static,
     {
-        let size = std::mem::size_of::<T>() as u64 * capacity;
+        self.allocate_in::<T, K>(capacity, None)
+    }
+
+    fn allocate_in<T: bytemuck::Pod, K: BufferKind + 'static>(
+        &mut self,
+        capacity: u64,
+        context_id: Option<context::ContextId>,
+    ) -> Result<OwnedResource<Buffer<T, K>>, AllocError> {
+        let size = (std::mem::size_of::<T>() as u64)
+            .checked_mul(capacity)
+            .ok_or(AllocError::InvalidBufferSize { size: capacity })?;
 
         if size > Self::PAGE_SIZE {
             return Err(AllocError::AllocationTooLarge {
@@ -392,7 +528,8 @@ impl BufferArena {
             return Err(AllocError::InvalidBufferSize { size });
         }
 
-        let limits = context::device(None).limits();
+        let device = context::device(context_id);
+        let limits = device.limits();
         let alignment = match K::USAGE {
             usage if usage.contains(wgpu::BufferUsages::UNIFORM) => {
                 limits.min_uniform_buffer_offset_alignment
@@ -400,15 +537,16 @@ impl BufferArena {
             usage if usage.contains(wgpu::BufferUsages::STORAGE) => {
                 limits.min_storage_buffer_offset_alignment
             }
-            _ => 1, // Temp pour l'instant TODO: il faudra supporter les différentes contrainte pour
-                    // les autres buffer
+            _ => wgpu::COPY_BUFFER_ALIGNMENT as u32,
         };
 
         let create_page = || BufferPage {
-            buffer: BufferBuilder::new()
-                .with_usages(K::USAGE | wgpu::BufferUsages::COPY_DST)
-                .with_size(Self::PAGE_SIZE)
-                .build(),
+            buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Velum typed allocation page"),
+                size: Self::PAGE_SIZE,
+                usage: K::USAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
             size: Self::PAGE_SIZE,
             next_offset: 0,
             allocations: 0,
@@ -455,7 +593,7 @@ impl BufferArena {
         };
 
         let alloc_id = self.allocations.insert(alloc);
-        Ok(OwnedResource::new(Buffer::new(alloc_id)))
+        Ok(OwnedResource::new(Buffer::new(alloc_id, context_id)))
     }
 
     pub fn deallocate<T, K>(&mut self, buffer: Buffer<T, K>) {
@@ -515,7 +653,12 @@ impl BufferArena {
             );
         }
 
-        context::queue(None).write_buffer(&page.buffer, total_offset, bytemuck::cast_slice(data));
+        context::queue(buffer.context).write_buffer(
+            &page.buffer,
+            total_offset,
+            bytemuck::cast_slice(data),
+        );
+        super::report::record_upload(data_size as u64);
     }
 }
 

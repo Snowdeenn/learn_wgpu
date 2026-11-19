@@ -88,6 +88,37 @@ pub trait RenderModule: Send + Sync {
     fn prepare(&self, view: ParticleView<'_>, output: &mut RenderModuleOutput);
 }
 
+/// Attach persistent mesh/texture owners without changing historical module structs.
+pub struct RetainedRenderModule<M, H: crate::ResourceHandle> {
+    module: M,
+    _owner: crate::SharedResource<H>,
+}
+pub trait RenderModuleExt: RenderModule + Sized {
+    fn with_resource<H: crate::ResourceHandle + Send + Sync>(
+        self,
+        owner: crate::SharedResource<H>,
+    ) -> RetainedRenderModule<Self, H> {
+        RetainedRenderModule {
+            module: self,
+            _owner: owner,
+        }
+    }
+}
+impl<M: RenderModule> RenderModuleExt for M {}
+impl<M: RenderModule, H: crate::ResourceHandle + Send + Sync> RenderModule
+    for RetainedRenderModule<M, H>
+{
+    fn trail_capacity(&self) -> usize {
+        self.module.trail_capacity()
+    }
+    fn read_mask(&self) -> u32 {
+        self.module.read_mask()
+    }
+    fn prepare(&self, view: ParticleView<'_>, output: &mut RenderModuleOutput) {
+        self.module.prepare(view, output);
+    }
+}
+
 pub struct ParticleSpriteInstance {
     pub render: RenderInstance,
     pub sprite: Sprite,
@@ -133,6 +164,12 @@ pub struct RenderModuleOutput {
 }
 
 impl RenderModuleOutput {
+    pub fn sprites(&self) -> &[ParticleSpriteInstance] {
+        &self.sprite
+    }
+    pub fn shapes(&self) -> &[ParticleShapeInstance] {
+        &self.shape
+    }
     pub fn clear(&mut self) {
         self.shape.clear();
         self.sprite.clear();

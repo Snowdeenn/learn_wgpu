@@ -118,13 +118,16 @@ impl SceneRenderer {
         self.execute_into(&mut frame.encoder, &frame.view, data)
     }
 
-    pub(crate) fn execute_into(
+    pub fn execute_into(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         data: &mut RenderData,
     ) -> Result<(), PassError> {
-        self.prepare_effects().map_err(PassError::Schedule)?;
+        self.prepare_effects().map_err(|error| {
+            crate::backend::report::diagnostic("effect preparation", error.to_string());
+            PassError::Schedule(error)
+        })?;
         for scheduled in &self.schedule {
             let pass = match *scheduled {
                 ScheduledPass::Local(id) => self.passes.get_mut(id).unwrap(),

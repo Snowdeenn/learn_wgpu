@@ -211,6 +211,7 @@ pub fn draw_all(pass: &mut wgpu::RenderPass<'_>) -> Result<(), TextError> {
         .render(&context.atlas, &context.viewport, pass)
         .map_err(TextError::Render)?;
     context.frame_state = FrameState::Drawn;
+    crate::backend::report::text_draw();
     Ok(())
 }
 

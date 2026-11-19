@@ -61,6 +61,9 @@ macro_rules! define_pipeline_context {
 /// Omitting it preserves the builder's default blending; `None` disables blending.
 #[macro_export]
 macro_rules! pipeline_context {
+    (template: $template:expr $(,)?) => {
+        $crate::try_pipeline_context!(template: $template).expect("Invalid material pipeline context")
+    };
     (
         $name:ident {
             shader: $shader:expr,
@@ -133,4 +136,10 @@ macro_rules! pipeline_context {
         };
         result
     }};
+}
+
+/// Described context path; shares the template's validated shaders/layout/raster state.
+#[macro_export]
+macro_rules! try_pipeline_context {
+    (template: $template:expr $(,)?) => { $crate::backend::pipeline::try_context($template) };
 }
