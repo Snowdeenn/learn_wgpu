@@ -1,11 +1,11 @@
 //! These modules must compile against the actual external public API.
 //! GPU constructors are deliberately not invoked by ordinary CPU tests.
 #![allow(dead_code)]
-#[path = "../doc/examples/effet_custom.rs"]
+#[path = "../../doc/examples/effet_custom.rs"]
 mod effet_custom;
-#[path = "../doc/examples/pipeline_custom.rs"]
+#[path = "../../doc/examples/pipeline_custom.rs"]
 mod pipeline_custom;
-#[path = "../doc/examples/scene_minimale.rs"]
+#[path = "../../doc/examples/scene_minimale.rs"]
 mod scene_minimale;
 
 #[test]

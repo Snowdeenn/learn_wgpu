@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let material = velum::try_material! { template: template, bindings: [] }?;
     let cameras = standard::Cameras::new(None, slots.camera)?;
     let mesh =
-        velum::backend::shape::register(velum::geometry::primitives::create_rect_vertices().0)
+        velum::backend::shape::register(velum::geometry::create_rect_vertices().0)
             .share();
     let mut particles = EffectInstance::new(
         Arc::new(EffectDescription {

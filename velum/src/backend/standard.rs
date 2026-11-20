@@ -133,7 +133,7 @@ pub fn try_template(
         .vertex_layouts
         .resize(slots.vertices as usize + 1, None);
     template.vertex_layouts[slots.vertices as usize] =
-        Some(crate::geometry::mesh::Vertex::layout().into());
+        Some(crate::geometry::Vertex::layout().into());
     template.targets[0].as_mut().unwrap().blend = blend;
     template.depth_stencil = depth;
     super::material::try_template(template)

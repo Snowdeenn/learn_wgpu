@@ -37,8 +37,12 @@ impl PresentEffect {
         )
         .expect("Impossible de créer les bindings de la scène");
 
-        let present_shader =
-            backend::load_shader(Some("Present"), "assets/shaders/present.wgsl").unwrap();
+        let present_shader = backend::try_shader(
+            None,
+            "Present",
+            include_str!("../../assets/shaders/present.wgsl"),
+        )
+        .unwrap();
 
         let present_context = crate::pipeline_context! {
             Present {

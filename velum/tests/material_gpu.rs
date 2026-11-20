@@ -240,7 +240,7 @@ fn sprite_kinds_and_stable_blending() {
         .update(&velum::camera::Camera2D::new(), [4, 4], 1.)
         .unwrap();
     let geometry =
-        geometry::try_mesh(None, &velum::geometry::primitives::create_rect_vertices().0).unwrap();
+        geometry::try_mesh(None, &velum::geometry::create_rect_vertices().0).unwrap();
     let output = output(4, 4);
     for kind in 0..3 {
         // Atlas case puts every category in one group, with distinct bindings.
@@ -776,7 +776,7 @@ fn standard_materials_particles_and_cameras() {
         .update(&velum::camera::Camera2D::new(), [4, 4], 2.0)
         .unwrap();
     let mesh =
-        velum::backend::shape::register(velum::geometry::primitives::create_rect_vertices().0)
+        velum::backend::shape::register(velum::geometry::create_rect_vertices().0)
             .share();
     let geometry = velum::backend::shape::geometry(mesh.id()).unwrap();
     let particles = [velum::particle::modules::ParticleShapeInstance {
