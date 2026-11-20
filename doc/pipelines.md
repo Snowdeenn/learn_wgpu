@@ -112,10 +112,11 @@ Un changement de binding peut donc séparer deux groupes, même avec le même me
 
 ## Shaders et samplers
 
-`backend::load_shader(label, path)` charge le WGSL depuis le disque. Les chemins
-des effets existants sont relatifs au répertoire de travail (`assets/shaders`).
-L'application doit distribuer ces assets ou créer ses propres shader modules,
-par exemple avec `include_str!`, si elle veut un binaire indépendant du dossier.
+`backend::load_shader(label, path)` charge le WGSL depuis le disque, avec un
+chemin relatif au répertoire de travail ou absolu. Les shaders fournis par
+Velum sont dans `velum/assets/shaders/` et intégrés à la compilation avec
+`include_str!` : les matériaux standards et effets n'ont pas besoin de fichiers
+WGSL dans le répertoire de travail de l'application.
 
 `SamplerBuilder` configure les filtres et modes d'adressage. Les helpers
 `sampler::filtering` et `sampler::pixel_art` donnent des réglages courants.

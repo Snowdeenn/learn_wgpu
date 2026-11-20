@@ -1713,21 +1713,16 @@ dependencies = [
 name = "learn_wgpu"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "egui",
  "egui-wgpu",
  "egui-winit",
  "env_logger",
- "glyphon",
- "image",
  "math",
  "new_collection",
  "paste",
- "pollster",
  "rand 0.10.3",
- "serde",
- "serde_json",
  "tracing",
+ "velum",
  "wgpu",
  "winit",
 ]
@@ -3767,6 +3762,25 @@ dependencies = [
  "glifo",
  "hashbrown 0.17.1",
  "vello_common",
+]
+
+[[package]]
+name = "velum"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glyphon",
+ "image",
+ "math",
+ "new_collection",
+ "paste",
+ "pollster",
+ "rand 0.10.3",
+ "serde",
+ "serde_json",
+ "tracing",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

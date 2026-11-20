@@ -142,7 +142,7 @@ fn pipeline_changes_split_runs_even_with_the_same_geometry() {
 /// Invoked from the single GPU regression entry point after context initialization.
 pub(crate) fn gpu_regression() {
     use crate::backend::{buffer, metrics, pipeline, target, texture};
-    use crate::geometry::mesh::{Mesh, Vertex};
+    use crate::geometry::{Mesh, Vertex};
     crate::define_pipeline_context!(PhaseGpu);
     let device = context::device(None);
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

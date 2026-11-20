@@ -22,9 +22,10 @@ impl CompositeEffect {
             wgpu::ShaderStages::FRAGMENT => source_target.texture(),
             wgpu::ShaderStages::FRAGMENT => sampler,
         };
-        let composition_shader = backend::load_shader(
-            Some("Composition shader"),
-            "assets/shaders/composition.wgsl",
+        let composition_shader = backend::try_shader(
+            None,
+            "Composition shader",
+            include_str!("../../assets/shaders/composition.wgsl"),
         )
         .unwrap();
 

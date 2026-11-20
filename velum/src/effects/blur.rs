@@ -199,8 +199,12 @@ impl BlurEffect {
             wgpu::ShaderStages::VERTEX_FRAGMENT => horizontal_unif
         };
 
-        let blur_shader =
-            backend::load_shader(Some("Blur shader"), "assets/shaders/blur.wgsl").unwrap();
+        let blur_shader = backend::try_shader(
+            None,
+            "Blur shader",
+            include_str!("../../assets/shaders/blur.wgsl"),
+        )
+        .unwrap();
 
         let blur_pipeline_ctx = crate::pipeline_context! {
             Blur {

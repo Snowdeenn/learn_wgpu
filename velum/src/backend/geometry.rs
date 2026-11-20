@@ -194,7 +194,7 @@ pub fn try_update(id: GeometryId, geometry: Geometry) -> RenderResult<()> {
 /// Meshes use Velum's established vertex format, shared by sprites and tessellation.
 pub fn try_mesh(
     context: Option<ContextId>,
-    mesh: &crate::geometry::mesh::Mesh,
+    mesh: &crate::geometry::Mesh,
 ) -> RenderResult<OwnedResource<GeometryId>> {
     if mesh.vertices().is_empty()
         || mesh.indices().is_empty()
@@ -208,7 +208,7 @@ pub fn try_mesh(
             "empty mesh or invalid vertex index",
         ));
     }
-    let vertices = buffer::allocate_in::<crate::geometry::mesh::Vertex, buffer::Vertex>(
+    let vertices = buffer::allocate_in::<crate::geometry::Vertex, buffer::Vertex>(
         context,
         mesh.vertices().len() as u64,
     )

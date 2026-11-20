@@ -10,7 +10,7 @@ use super::buffer::{self, Buffer, Index, Vertex};
 use super::{RenderInstance, instances::cache};
 use crate::backend;
 use crate::backend::instances::Instance;
-use crate::geometry::mesh::{Mesh, Vertex as MeshVertex};
+use crate::geometry::{Mesh, Vertex as MeshVertex};
 
 pub struct MeshResource {
     vertices: SharedResource<Buffer<MeshVertex, Vertex>>,

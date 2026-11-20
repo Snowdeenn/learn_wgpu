@@ -508,7 +508,7 @@ fn owned_resource_lifecycle() {
             .is_none()
     );
 
-    let (mesh, _) = crate::geometry::primitives::create_rect_vertices();
+    let (mesh, _) = crate::geometry::create_rect_vertices();
     let owner = crate::backend::shape::register(mesh);
     let mesh_id = owner.id();
     drop(owner);

@@ -73,7 +73,7 @@ fn fallible_construction_never_requires_a_default_context() {
 fn cpu_tessellation_appends_nine_patch_with_the_velum_vertex_format() {
     use velum::geometry::{
         NinePatchMargins, Shape, Tesselator,
-        mesh::{Mesh, Vertex},
+        {Mesh, Vertex},
     };
     let mut mesh = Mesh::new();
     let shape = Shape::NinePatch {

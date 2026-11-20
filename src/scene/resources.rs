@@ -3,7 +3,7 @@ use super::instance::Dummy;
 use crate::api::scene::{RenderDataId, SceneId};
 use crate::backend::buffer::{Buffer, Index, StorageRead, StorageVertex, Uniform};
 use crate::backend::shape::MeshResource;
-use crate::geometry::mesh::Vertex;
+use crate::geometry::Vertex;
 use math::Mat4;
 use new_collection::Id;
 

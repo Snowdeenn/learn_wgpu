@@ -21,7 +21,7 @@ use crate::{
     backend::{self, buffer, pass, pass::PassTarget},
     camera::Camera2D,
     core::Resources,
-    geometry::{mesh::Vertex, primitives::*},
+    geometry::Vertex,
     particle::{
         self, EffectDescription, EmitterSettings,
         modules::{
@@ -39,13 +39,25 @@ pub fn initialize(
     resolution: [u32; 2],
 ) {
     let mut data = RenderData::new();
-    let texture_shader =
-        backend::load_shader(Some("Texture Shader"), "assets/shaders/texture.wgsl").unwrap();
-    let mesh_shader =
-        backend::load_shader(Some("Mesh Shader"), "assets/shaders/mesh.wgsl").unwrap();
+    let texture_shader = backend::try_shader(
+        None,
+        "Texture Shader",
+        include_str!("../../velum/assets/shaders/texture.wgsl"),
+    )
+    .unwrap();
+    let mesh_shader = backend::try_shader(
+        None,
+        "Mesh Shader",
+        include_str!("../../velum/assets/shaders/mesh.wgsl"),
+    )
+    .unwrap();
 
-    let tex_array_shader =
-        backend::load_shader(Some("Texture array"), "assets/shaders/texture_array.wgsl").unwrap();
+    let tex_array_shader = backend::try_shader(
+        None,
+        "Texture array",
+        include_str!("../../velum/assets/shaders/texture_array.wgsl"),
+    )
+    .unwrap();
 
     let rand = |min: f32, max: f32| rand::random_range(min..max);
 
@@ -99,9 +111,9 @@ pub fn initialize(
     let (id_tex_array_c, _) = backend::register_texture_array(tex_array_c).unwrap();
     let id_tex_array_c = keep(&mut data, id_tex_array_c);
 
-    let (rect_mesh, _) = create_rect_vertices();
-    let (circle_mesh, _) = create_circle_vertices(CircleOptions::default());
-    let (triangle_mesh, _) = create_triangle_vertices();
+    let (rect_mesh, _) = crate::geometry::create_rect_vertices();
+    let (circle_mesh, _) = crate::geometry::create_circle_vertices(crate::geometry::CircleOptions::default());
+    let (triangle_mesh, _) = crate::geometry::create_triangle_vertices();
     let rectangle = backend::shape::register(rect_mesh.clone());
     let rectangle = keep(&mut data, rectangle);
     let circle = backend::shape::register(circle_mesh.clone());
