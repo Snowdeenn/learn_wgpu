@@ -82,6 +82,7 @@ pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::Ima
         dst_tex.size(),
     );
 
+    crate::backend::report::record_upload(image_byte.len() as u64);
     Ok(dst_tex)
 }
 
@@ -151,6 +152,7 @@ pub fn load_texture_array(
                 depth_or_array_layers: 1, // Une couche par écriture.
             },
         );
+        crate::backend::report::record_upload(image.as_raw().len() as u64);
     }
 
     Ok(Texture::with_view(

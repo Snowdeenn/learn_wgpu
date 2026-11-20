@@ -59,6 +59,21 @@ pub fn execute_one(
     surface_view: &wgpu::TextureView,
     frame: &mut RenderData,
 ) -> Result<(), PassError> {
+    let start = std::time::Instant::now();
+    let result = encode_one(context, encoder, surface_view, frame);
+    crate::backend::report::record_pass(start.elapsed());
+    if let Err(error) = &result {
+        crate::backend::report::diagnostic("pass", error.to_string());
+    }
+    result
+}
+
+fn encode_one(
+    context: &mut PassContext,
+    encoder: &mut wgpu::CommandEncoder,
+    surface_view: &wgpu::TextureView,
+    frame: &mut RenderData,
+) -> Result<(), PassError> {
     match context {
         PassContext::Render {
             target,
@@ -121,6 +136,15 @@ pub fn execute_one(
                     });
             }
 
+            let _attachments = crate::backend::pipeline::AttachmentScope::new(
+                crate::backend::pipeline::AttachmentSignature {
+                    colors: vec![Some(view.texture().format())],
+                    depth: depth_target
+                        .as_ref()
+                        .map(|target| target.texture().as_raw().format()),
+                    samples: view.texture().sample_count(),
+                },
+            );
             let mut pass = builder.begin(encoder);
             operation.execute(&mut pass, frame)?;
         }
@@ -133,6 +157,7 @@ pub fn execute_one(
                 label: Some("Compute operation"),
                 timestamp_writes: None,
             });
+            crate::backend::report::compute_pass();
             operation.execute(&mut pass, frame)?;
         }
     }

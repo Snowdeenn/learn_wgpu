@@ -22,6 +22,7 @@ pub fn snapshot() -> RenderMetrics {
 }
 
 pub(super) fn batch() {
+    super::report::record_batch();
     FRAME.update(|mut m| {
         m.batches += 1;
         m
@@ -29,6 +30,7 @@ pub(super) fn batch() {
 }
 
 pub(crate) fn draw() {
+    super::report::record_draw();
     FRAME.update(|mut m| {
         m.draw_calls += 1;
         m
@@ -36,6 +38,7 @@ pub(crate) fn draw() {
 }
 
 pub(super) fn allocation() {
+    super::report::record_allocation();
     FRAME.update(|mut m| {
         m.instance_allocations += 1;
         m

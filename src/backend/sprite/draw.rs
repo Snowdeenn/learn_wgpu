@@ -58,6 +58,7 @@ pub fn draw<T: SpriteInstance>(
         let group = cache::prepare(instances, range)?;
         pass.set_bind_group(0, &group, &[]);
         crate::backend::metrics::draw();
+        crate::backend::report::record_instances(count as u64);
         pass.draw_indexed(batch.indices.clone(), 0, 0..count);
     }
     Ok(())

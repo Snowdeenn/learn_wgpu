@@ -1,20 +1,47 @@
 pub fn bind(ctx: &(impl PipelineContext + ?Sized), pass: &mut wgpu::RenderPass<'_>) {
-    pass.set_pipeline(ctx.pipeline());
+    bind_resolved(
+        ctx.pipeline(),
+        ctx.bind_groups()
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, group)| {
+                group
+                    .as_ref()
+                    .map(|group| (slot as u32, group, &[] as &[u32]))
+            }),
+        ctx.vertex_buffer()
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, vertex)| {
+                vertex
+                    .as_ref()
+                    .map(|(buffer, range)| (slot as u32, buffer.slice(range.clone())))
+            }),
+        ctx.index_buffer()
+            .map(|(buffer, range)| (buffer.slice(range.clone()), wgpu::IndexFormat::Uint32)),
+        pass,
+    );
+}
 
-    for (i, group) in ctx.bind_groups().iter().enumerate() {
-        if let Some(group) = group {
-            pass.set_bind_group(i as u32, group, &[]);
-        }
+/// Binds already-resolved graphics state without allocating temporary collections.
+/// Slots, dynamic offsets and bounded slices are supplied by the caller, after validation.
+/// Shared by historical contexts and prepared render objects; does not issue a draw.
+pub fn bind_resolved<'a>(
+    pipeline: &wgpu::RenderPipeline,
+    groups: impl IntoIterator<Item = (u32, &'a wgpu::BindGroup, &'a [u32])>,
+    vertices: impl IntoIterator<Item = (u32, wgpu::BufferSlice<'a>)>,
+    indices: Option<(wgpu::BufferSlice<'a>, wgpu::IndexFormat)>,
+    pass: &mut wgpu::RenderPass<'_>,
+) {
+    pass.set_pipeline(pipeline);
+    for (slot, group, offsets) in groups {
+        pass.set_bind_group(slot, group, offsets);
     }
-
-    for (i, vb) in ctx.vertex_buffer().iter().enumerate() {
-        if let Some((buffer, range)) = vb {
-            pass.set_vertex_buffer(i as u32, buffer.slice(range.clone()));
-        }
+    for (slot, buffer) in vertices {
+        pass.set_vertex_buffer(slot, buffer);
     }
-
-    if let Some((buffer, range)) = ctx.index_buffer() {
-        pass.set_index_buffer(buffer.slice(range.clone()), wgpu::IndexFormat::Uint32);
+    if let Some((buffer, format)) = indices {
+        pass.set_index_buffer(buffer, format);
     }
 }
 
@@ -61,6 +88,9 @@ macro_rules! define_pipeline_context {
 /// Omitting it preserves the builder's default blending; `None` disables blending.
 #[macro_export]
 macro_rules! pipeline_context {
+    (template: $template:expr $(,)?) => {
+        $crate::try_pipeline_context!(template: $template).expect("Invalid material pipeline context")
+    };
     (
         $name:ident {
             shader: $shader:expr,
@@ -133,4 +163,12 @@ macro_rules! pipeline_context {
         };
         result
     }};
+}
+
+/// Described context path; shares the template's validated shaders/layout/raster state.
+#[macro_export]
+macro_rules! try_pipeline_context {
+    (template: $template:expr $(,)?) => {
+        $crate::backend::pipeline::try_context($template)
+    };
 }

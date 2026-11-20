@@ -129,6 +129,12 @@ impl From<EffectError> for PassError {
     fn from(error: EffectError) -> Self { Self::Effect(error) }
 }
 
+impl From<crate::backend::RenderError> for PassError {
+    fn from(error: crate::backend::RenderError) -> Self {
+        Self::Draw(DrawError { command: 0, reason: error.to_string() })
+    }
+}
+
 impl From<DrawError> for PassError {
     fn from(error: DrawError) -> Self {
         Self::Draw(error)

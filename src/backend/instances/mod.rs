@@ -1,3 +1,8 @@
+mod gpu;
+pub use gpu::{
+    GpuInstance, InstanceBinding, InstanceSource, InstanceStream, ObjectInstance, submit,
+};
+
 pub(crate) mod cache;
 
 pub use cache::memory_stats;

@@ -5,6 +5,13 @@
 //! simplify the process and fall back to a set of reasonable defaults.
 #![allow(unused)]
 
+mod material;
+pub(crate) use material::validate_current_attachments;
+pub use material::{
+    AttachmentScope, AttachmentSignature, ComputeContext, MaterialPipelineContext, dispatch,
+    try_build, try_compute, try_context,
+};
+
 pub mod compute;
 mod context;
 pub mod storage;

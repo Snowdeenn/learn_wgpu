@@ -139,23 +139,83 @@ impl Renderer {
             ..Default::default()
         });
 
+        super::report::begin();
         Ok(Some(Frame {
             window,
             texture_surface: frame,
             view,
             encoder,
-            _cleanup: FrameCleanup,
+            _cleanup: FrameCleanup::new(),
         }))
     }
 }
 
 /// Runs after the frame's encoder is discarded or submitted.
 struct FrameCleanup;
+impl FrameCleanup {
+    fn new() -> Self {
+        Self
+    }
+}
 
 impl Drop for FrameCleanup {
     fn drop(&mut self) {
+        if super::report::snapshot().outcome == super::report::FrameOutcome::Recording {
+            super::report::abandoned();
+        }
         super::instances::reset_frame();
         super::text::reset_frame();
+        super::discard();
+    }
+}
+
+/// Velum's same immediate-upload lifecycle for an application-owned output view.
+/// Resources are recycled only after submission or after the encoder is dropped.
+pub struct OffscreenFrame {
+    context_id: Option<context::ContextId>,
+    context: Arc<context::Context>,
+    encoder: wgpu::CommandEncoder,
+    view: wgpu::TextureView,
+    _cleanup: FrameCleanup,
+    _thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+impl OffscreenFrame {
+    pub fn new(
+        context_id: Option<context::ContextId>,
+        view: wgpu::TextureView,
+    ) -> Result<Self, super::RenderError> {
+        let context = super::gpu(context_id)?;
+        let encoder = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Velum offscreen frame"),
+            });
+        super::report::begin();
+        Ok(Self {
+            context_id,
+            context,
+            encoder,
+            view,
+            _cleanup: FrameCleanup::new(),
+            _thread: std::marker::PhantomData,
+        })
+    }
+    pub fn render_parts(&mut self) -> (&mut wgpu::CommandEncoder, &wgpu::TextureView) {
+        (&mut self.encoder, &self.view)
+    }
+    pub fn execute(
+        &mut self,
+        renderer: &mut crate::SceneRenderer,
+        data: &mut RenderData,
+    ) -> Result<(), super::pass::PassError> {
+        renderer.execute_into(&mut self.encoder, &self.view, data)
+    }
+    pub fn finish(self) -> super::report::FrameReport {
+        self.context.queue.submit([self.encoder.finish()]);
+        super::instances::submitted();
+        super::text::submitted();
+        super::report::submitted();
+        super::report::snapshot_in(self.context_id)
     }
 }
 
@@ -221,6 +281,7 @@ impl<'a> Frame<'a> {
             .and_then(Result::ok);
         super::instances::submitted();
         super::text::submitted();
+        super::report::submitted();
         self.window.pre_present_notify();
         context::queue(None).present(self.texture_surface);
         gpu_wait

@@ -68,6 +68,18 @@ pub fn init(adapter: &wgpu::Adapter) -> Result<(), InitError> {
         .map_err(|_| InitError::AlreadyInitialized)
 }
 
+/// Adopt an application GPU, preserving its existing surface and event loop.
+pub fn init_from(device: wgpu::Device, queue: wgpu::Queue) -> Result<(), InitError> {
+    DEFAULT_CONTEXT
+        .set(Arc::new(Context {
+            device,
+            queue,
+            texture_storage: Arc::new(RwLock::new(TextureStorage::new())),
+            buffer: Arc::new(RwLock::new(BufferArena::new())),
+        }))
+        .map_err(|_| InitError::AlreadyInitialized)
+}
+
 fn contexts() -> &'static RwLock<Arena<Arc<Context>>> {
     CONTEXTS.get_or_init(|| RwLock::new(Arena::new()))
 }
@@ -85,8 +97,33 @@ pub fn create(adapter: &wgpu::Adapter) -> Result<OwnedResource<ContextId>, InitE
     }))
 }
 
+/// Registers an application-owned device/queue pair (for incremental integrations).
+/// Both handles must come from the same device.
+pub fn register(device: wgpu::Device, queue: wgpu::Queue) -> OwnedResource<ContextId> {
+    let raw = contexts().write().unwrap().insert(Arc::new(Context {
+        queue,
+        device,
+        texture_storage: Arc::new(RwLock::new(TextureStorage::new())),
+        buffer: Arc::new(RwLock::new(BufferArena::new())),
+    }));
+    OwnedResource::new(ContextId {
+        raw,
+        uid: next_id(),
+    })
+}
+
+/// Fallible counterpart used by the described rendering API.
+pub fn try_context(id: Option<ContextId>) -> Option<Arc<Context>> {
+    match id {
+        None => DEFAULT_CONTEXT.get().cloned(),
+        Some(id) => contexts().read().unwrap().get(id.raw).cloned(),
+    }
+}
+
 pub fn remove(id: ContextId) -> Option<Arc<Context>> {
-    contexts().write().unwrap().remove(id.raw)
+    let mut contexts = contexts().write().unwrap();
+    contexts.get(id.raw)?;
+    contexts.remove(id.raw)
 }
 
 #[derive(Debug)]

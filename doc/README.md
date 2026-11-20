@@ -24,6 +24,7 @@ navigation de l'application, ni de notions imposées de monde/VFX/HUD.
 10. [Texte, caméra et particules](texte-camera-particules.md).
 11. [Erreurs, diagnostic et limites](diagnostic.md).
 12. [Index de l'API publique](reference.md).
+13. [Géométries, matériaux et objets de rendu](materials.md).
 
 ## Exemples complets
 
