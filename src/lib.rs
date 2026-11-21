@@ -19,6 +19,7 @@ pub mod core;
 pub mod effects;
 pub mod geometry;
 pub mod particle;
+pub mod registries;
 
 pub use api::scene::{RenderData, RenderDataError, RenderDataId, Scene, SceneId};
 pub use api::scene_renderer::{EffectId, EffectSource, ScheduleAnchor, ScheduleError, SceneRenderer, SceneRendererBuilder};

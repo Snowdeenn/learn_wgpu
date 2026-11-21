@@ -1,5 +1,25 @@
 # Ressources GPU et données CPU
 
+## Accès depuis une application
+
+`velum::registries` expose les registres globaux : `context`, `buffer`,
+`texture`, `shape`, `pipeline`, `compute`, `target`, `binding_set`, `text`
+et `particle`. Ce sont les mêmes modules et les mêmes stockages que ceux
+utilisés par le backend, partagés entre les scènes et les instances de `Velum`.
+
+```rust
+use velum::registries::{context, target, texture};
+
+// Après context::init(&adapter) :
+let owner = target::register(descriptor);
+let snapshot = target::get(owner.id()).unwrap();
+// Conserver owner dans l'application ou dans les données d'une scène.
+```
+
+Les ressources GPU nécessitent l'initialisation du contexte par défaut avec
+`context::init(&adapter)`. L'application peut ensuite enregistrer ses ressources
+et transmettre leurs IDs aux commandes de rendu de Velum.
+
 ## Handle, propriétaire, instantané
 
 Un handle copiable (`RenderTargetId`, `PipelineId<T>`, etc.) est un accès logique.
