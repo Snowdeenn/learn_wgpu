@@ -24,6 +24,7 @@ navigation de l'application, ni de notions imposées de monde/VFX/HUD.
 10. [Texte, caméra et particules](texte-camera-particules.md).
 11. [Erreurs, diagnostic et limites](diagnostic.md).
 12. [Index de l'API publique](reference.md).
+13. [Géométries, matériaux et objets de rendu](materials.md).
 
 ## Exemples complets
 
@@ -31,7 +32,7 @@ navigation de l'application, ni de notions imposées de monde/VFX/HUD.
 - [Effet personnalisé possédant ses ressources et sa passe](examples/effet_custom.rs).
 - [Pipeline et opération avec shader WGSL intégré et uniforme](examples/pipeline_custom.rs).
 
-Ces fichiers sont des modules Rust compilés par `tests/documentation.rs`.
+Ces fichiers sont des modules Rust compilés par `velum/tests/documentation.rs`.
 La compilation vérifie les signatures et les imports ; elle ne remplace pas
 l'exécution GPU. Leurs fonctions de construction nécessitent un backend déjà
 initialisé. Les autres extraits des guides sont des fragments contextualisés :
@@ -42,17 +43,23 @@ les variables comme `format`, `resolution` et `frame` viennent de l'hôte.
 Depuis la racine du dépôt :
 
 ```powershell
-cargo check --offline --all-targets
-cargo test --offline --lib --tests
-cargo test --offline --doc
-cargo test --offline --lib -- --ignored
-cargo doc --offline --no-deps
+cargo check --offline --workspace --all-targets
+cargo test --offline -p velum --lib --tests
+cargo test --offline -p velum --doc
+cargo test --offline -p velum --lib -- --ignored
+cargo doc --offline -p velum --no-deps
 ```
 
 Le test ignoré nécessite un adaptateur GPU. La documentation Rust est produite
 dans `target/doc/velum/index.html`. Les commandes peuvent omettre `--offline`
 si les dépendances ne sont pas encore disponibles localement.
 
-Le paquet Cargo s'appelle actuellement `learn_wgpu`, tandis que la bibliothèque
-importée dans le code s'appelle `velum`. Ce détail est important pour une
-dépendance depuis un autre dépôt ; voir le guide de démarrage.
+Le workspace contient deux paquets : `velum`, la bibliothèque dans `velum/`,
+et `learn_wgpu`, le banc de test à la racine qui dépend de cette bibliothèque.
+Les tests, exemples exécutables et shaders de Velum sont dans son crate ; les
+textures de démonstration restent dans `assets/textures/` à la racine.
+
+`cargo run -p learn_wgpu` lance le banc de test depuis la racine.
+`cargo run -p velum --example offscreen -- /tmp/velum-offscreen.png` lance
+l'exemple sans fenêtre. Voir le guide de démarrage pour utiliser le crate
+depuis un autre projet.

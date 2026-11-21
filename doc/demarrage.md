@@ -6,14 +6,15 @@ Depuis un projet voisin, une dépendance locale peut être déclarée ainsi :
 
 ```toml
 [dependencies]
-velum = { package = "learn_wgpu", path = "../learn_wgpu" }
+velum = { path = "../learn_wgpu/velum" }
 ```
 
 Le chemin est à adapter. L'hôte qui manipule directement wgpu, winit ou des
 types `new_collection` doit aussi déclarer ces dépendances avec des versions
 compatibles avec celles du dépôt. Les types de deux versions de wgpu ne sont
 pas interchangeables. Les macros actuelles peuvent également nécessiter `paste`
-dans le projet appelant. Copier les versions du Cargo.toml de ce dépôt évite
+dans le projet appelant. Copier les versions de `[workspace.dependencies]`
+dans le Cargo.toml à la racine de ce dépôt évite
 les suppositions de compatibilité.
 
 ## Initialisation avec une fenêtre

@@ -1,0 +1,24 @@
+[package]
+name = "velum"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = { workspace = true }
+image = { workspace = true }
+pollster = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+math = { workspace = true }
+new_collection = { workspace = true }
+paste = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+glyphon = { workspace = true }
+
+[package.metadata.wgsl-analyzer]
+edition = "2026_pre"
+package_manager = "cargo"
+root = "./assets/shaders/"
