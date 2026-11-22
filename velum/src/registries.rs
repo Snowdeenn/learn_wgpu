@@ -23,5 +23,8 @@
 
 pub use crate::backend::pipeline;
 pub use crate::backend::pipeline::compute;
-pub use crate::backend::{binding_set, buffer, context, shape, target, text, texture};
+pub use crate::backend::{
+    binding_set, bindings, buffer, context, geometry, material, sampler, shape, target, text,
+    texture,
+};
 pub use crate::particle;
