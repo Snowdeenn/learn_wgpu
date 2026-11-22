@@ -101,6 +101,7 @@ pub trait ResourceHandle: Copy + 'static {
 }
 
 #[must_use = "Keep the owner alive while its resource is in use"]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OwnedResource<H: ResourceHandle> {
     handle: H,
 }
@@ -134,6 +135,7 @@ impl<H: ResourceHandle> Drop for OwnedResource<H> {
     }
 }
 #[must_use = "Keep a shared owner alive while its resource is in use"]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SharedResource<H: ResourceHandle> {
     owner: Arc<OwnedResource<H>>,
 }

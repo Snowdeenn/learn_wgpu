@@ -13,6 +13,7 @@ use super::PipelineContext;
 type StoredContext = Arc<dyn Any + Send + Sync>;
 static STORAGE: OnceLock<RwLock<Arena<StoredContext>>> = OnceLock::new();
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PipelineId<T> {
     raw: Id<StoredContext>,
     _marker: PhantomData<fn() -> T>,

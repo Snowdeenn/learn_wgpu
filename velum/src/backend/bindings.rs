@@ -105,6 +105,7 @@ impl BindingSchema {
             })
     }
 }
+#[derive(Debug)]
 pub struct ResolvedLayouts {
     pub schema: BindingSchema,
     pub groups: Vec<Option<wgpu::BindGroupLayout>>,
