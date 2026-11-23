@@ -56,10 +56,31 @@ pub struct MaterialPipelineContext {
 pub fn try_context(
     template: crate::backend::MaterialTemplateId,
 ) -> RenderResult<MaterialPipelineContext> {
+    lookup_context(template, None)
+}
+
+/// Retrieves a template pipeline after checking its GPU context.
+pub fn try_context_in(
+    template: crate::backend::MaterialTemplateId,
+    context_id: Option<crate::backend::context::ContextId>,
+) -> RenderResult<MaterialPipelineContext> {
+    lookup_context(template, Some(context_id))
+}
+
+fn lookup_context(
+    template: crate::backend::MaterialTemplateId,
+    context_id: Option<Option<crate::backend::context::ContextId>>,
+) -> RenderResult<MaterialPipelineContext> {
     let template = crate::backend::material::get(template)
         .ok_or_else(|| crate::backend::RenderError::new("pipeline context", "missing template"))?;
+
+    if context_id.is_some_and(|id| id != template.description.context) {
+        return Err(crate::backend::RenderError::new("pipeline context", "GPU context mismatch"));
+    }
+
     let pipeline = crate::backend::pipeline::get(template.pipeline.id())
         .ok_or_else(|| crate::backend::RenderError::new("pipeline context", "missing pipeline"))?;
+    
     Ok(MaterialPipelineContext {
         pipeline: pipeline.pipeline.clone(),
     })

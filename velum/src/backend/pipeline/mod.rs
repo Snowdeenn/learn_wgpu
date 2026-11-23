@@ -9,7 +9,7 @@ mod material;
 pub(crate) use material::validate_current_attachments;
 pub use material::{
     AttachmentScope, AttachmentSignature, ComputeContext, MaterialPipelineContext, dispatch,
-    try_build, try_compute, try_context,
+    try_build, try_compute, try_context, try_context_in,
 };
 
 pub mod compute;
@@ -508,7 +508,12 @@ impl<'a> RenderPipelineBuilder<'a> {
     /// - A rasterization state field was specified but no fragment shader was given.
     /// - A color state field was specified but no fragment shader was given.
     pub fn build(self) -> wgpu::RenderPipeline {
-        let device = gpu_context::device(None);
+        self.build_in(None)
+    }
+
+    /// Builds the pipeline on the selected GPU context.
+    pub fn build_in(self, context_id: Option<gpu_context::ContextId>) -> wgpu::RenderPipeline {
+        let device = gpu_context::device(context_id);
         match self.layout {
             Layout::Descriptor(ref desc) => {
                 let layout = device.create_pipeline_layout(desc);

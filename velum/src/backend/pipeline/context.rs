@@ -84,15 +84,17 @@ macro_rules! define_pipeline_context {
     };
 }
 
+/// Optional `context_id: Option<ContextId>` goes before `shader`.
 /// Optional `blend: Option<wgpu::BlendState>` goes before `bind_group`.
 /// Omitting it preserves the builder's default blending; `None` disables blending.
 #[macro_export]
 macro_rules! pipeline_context {
-    (template: $template:expr $(,)?) => {
-        $crate::try_pipeline_context!(template: $template).expect("Invalid material pipeline context")
+    ($($field:ident : $value:expr),+ $(,)?) => {
+        $crate::try_pipeline_context!($($field: $value),+).expect("Invalid material pipeline context")
     };
     (
         $name:ident {
+            $(context_id: $context_id:expr,)?
             shader: $shader:expr,
             format: $format:expr,
             $(fragment: $fragment:expr,)?
@@ -103,19 +105,13 @@ macro_rules! pipeline_context {
             index_buffer: $ib:expr $(,)?
         }
     ) => {{
+        let context_id = None$(.or($context_id))?;
         let shader = $shader;
 
         let layouts = [$(Some(&$layout)),*];
 
-        let pipeline_layout = $crate::backend::context::device(None)
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &layouts,
-                immediate_size: 0,
-            });
-
-        let builder = $crate::backend::pipeline::RenderPipelineBuilder::from_layout(
-            &pipeline_layout,
+        let builder = $crate::backend::pipeline::RenderPipelineBuilder::from_layout_descriptor(
+            &layouts[..],
             shader,
         )
         .with_vertex_entry_point("vs_main")
@@ -134,7 +130,7 @@ macro_rules! pipeline_context {
             $(let builder = builder.add_vertex_buffer_layout($vb_layout);)*
         )?
 
-        let pipeline = builder.build();
+        let pipeline = builder.build_in(context_id);
 
         #[allow(unused)]
         let result = paste::paste! {
@@ -168,6 +164,9 @@ macro_rules! pipeline_context {
 /// Described context path; shares the template's validated shaders/layout/raster state.
 #[macro_export]
 macro_rules! try_pipeline_context {
+    (context_id: $context_id:expr, template: $template:expr $(,)?) => {
+        $crate::backend::pipeline::try_context_in($template, $context_id)
+    };
     (template: $template:expr $(,)?) => {
         $crate::backend::pipeline::try_context($template)
     };

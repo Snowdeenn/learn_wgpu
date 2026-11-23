@@ -108,6 +108,14 @@ pub fn try_register(material: Material) -> RenderResult<OwnedResource<MaterialId
     validate(&material)?;
     Ok(storage::insert(material))
 }
+/// Registers a material after checking the context of its template.
+pub fn try_register_in(
+    material: Material,
+    context_id: Option<ContextId>,
+) -> RenderResult<OwnedResource<MaterialId>> {
+    validate_in(&material, Some(context_id))?;
+    Ok(storage::insert(material))
+}
 pub fn try_update(id: MaterialId, material: Material) -> RenderResult<()> {
     validate(&material)?;
     if !storage::replace(id, material) {
@@ -116,8 +124,14 @@ pub fn try_update(id: MaterialId, material: Material) -> RenderResult<()> {
     Ok(())
 }
 fn validate(material: &Material) -> RenderResult<()> {
+    validate_in(material, None)
+}
+fn validate_in(material: &Material, context_id: Option<Option<ContextId>>) -> RenderResult<()> {
     let template = get(material.template.id())
         .ok_or_else(|| RenderError::new("material", "missing template"))?;
+    if context_id.is_some_and(|id| id != template.description.context) {
+        return Err(RenderError::new("material", "GPU context mismatch"));
+    }
     let gpu = super::gpu(template.description.context)?;
     let mut seen = std::collections::BTreeSet::new();
     for owner in &material.bindings {

@@ -1000,3 +1000,86 @@ fn compute_storage_texture_and_text_cleanup() {
     }
     assert_eq!(next.finish().text_draws, 1);
 }
+
+velum::define_pipeline_context!(CustomGpu);
+
+#[test]
+#[ignore = "Requires a GPU adapter"]
+fn construction_macros_use_custom_context() {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let adapter =
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+            .expect("GPU adapter");
+    let custom = context::create(&adapter).unwrap();
+    let context_id = Some(custom.id());
+    let uniform = buffer::uniform::<[f32; 4]>(context_id, 1).unwrap();
+    let layout = velum::bind_group_layout! {
+        context_id: context_id,
+        wgpu::ShaderStages::VERTEX => uniform,
+    };
+    let (_, group) = velum::bind_group! {
+        context_id: context_id,
+        wgpu::ShaderStages::VERTEX => uniform,
+    };
+
+    let source = r#"
+        @vertex fn vs_main() -> @builtin(position) vec4f { return vec4f(0.0); }
+        @fragment fn fs_main() -> @location(0) vec4f { return vec4f(1.0); }
+        @compute @workgroup_size(1) fn cs_main() {}
+    "#;
+    let shader = try_shader(context_id, "construction macros", source).unwrap();
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let raw = velum::pipeline_context! {
+        CustomGpu {
+            context_id: context_id,
+            shader: &shader,
+            format: format,
+            fragment: "fs_main",
+            bind_group: [(layout, group)],
+            index_buffer: None,
+        }
+    };
+    assert!(raw.bind_groups[0].is_some());
+
+    let _bindings = velum::binding_set! {
+        context_id: context_id,
+        group: 0,
+        entries: [],
+    };
+    let empty_schema = BindingSchema::default();
+    let _compute = velum::compute_context! {
+        context_id: context_id,
+        shader: ShaderEntry::new(shader.clone(), "cs_main"),
+        schema: empty_schema,
+    };
+    let template = velum::material_template! {
+        label: String::from("construction macros"),
+        context_id: context_id,
+        vertex: ShaderEntry::new(shader.clone(), "vs_main"),
+        fragment: Some(ShaderEntry::new(shader, "fs_main")),
+        schema: BindingSchema::default(),
+        vertex_layouts: vec![],
+        primitive: Default::default(),
+        depth_stencil: None,
+        targets: vec![Some(format.into())],
+        multisample: Default::default(),
+    }.share();
+    let _material = velum::material! {
+        context_id: context_id,
+        template: template.clone(),
+        bindings: [],
+    };
+    let _pipeline = velum::pipeline_context! {
+        context_id: context_id,
+        template: template.id(),
+    };
+    assert!(velum::try_material! {
+        context_id: None,
+        template: template.clone(),
+        bindings: [],
+    }.is_err());
+    assert!(velum::try_pipeline_context! {
+        context_id: None,
+        template: template.id(),
+    }.is_err());
+}

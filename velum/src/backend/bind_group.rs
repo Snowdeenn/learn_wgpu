@@ -296,9 +296,16 @@ pub trait Bindable {
 
 /// Infer a layout from resources without creating a bind group.
 /// Bindings are numbered in declaration order, as in `bind_group!`.
+/// Use `context_id: Some(id),` before the bindings to select a custom context.
 #[macro_export]
 macro_rules! try_bind_group_layout {
-    ($($visibility:expr => $resource:expr),+ $(,)?) => {{ (|| -> Result<_, $crate::backend::buffer::BindingError> {
+    (context_id: $context_id:expr, $($visibility:expr => $resource:expr),+ $(,)?) => {
+        $crate::try_bind_group_layout!($context_id; $($visibility => $resource),+)
+    };
+    ($($visibility:expr => $resource:expr),+ $(,)?) => {
+        $crate::try_bind_group_layout!(None; $($visibility => $resource),+)
+    };
+    ($context_id:expr; $($visibility:expr => $resource:expr),+ $(,)?) => {{ (|| -> Result<_, $crate::backend::buffer::BindingError> {
         use $crate::backend::bind_group::Bindable;
 
         let mut entries = Vec::new();
@@ -315,7 +322,7 @@ macro_rules! try_bind_group_layout {
             }
         )*
 
-        Ok($crate::backend::context::device(None)
+        Ok($crate::backend::context::device($context_id)
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: None,
                 entries: &entries,
@@ -325,6 +332,9 @@ macro_rules! try_bind_group_layout {
 
 #[macro_export]
 macro_rules! try_bind_group {
+    (context_id: $context_id:expr, $($visibility:expr => $resource:expr),+ $(,)?) => {
+        $crate::try_bind_group!($context_id; $($visibility => $resource),+)
+    };
     ($($visibility:expr => $resource:expr),+ $(,)?) => {
         $crate::try_bind_group!(None; $($visibility => $resource),+)
     };
