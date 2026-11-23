@@ -20,6 +20,7 @@ pub trait Stored: Sized + Send + Sync + 'static {
 }
 
 /// Generational access identifier; copying an ID does not retain its resource.
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct ResourceId<T: Stored> {
     raw: Id<Arc<T>>,
     marker: PhantomData<fn() -> T>,
