@@ -1,18 +1,16 @@
 use super::{Batch, Sprite, SpriteInstance};
 use crate::backend::{
-    self, context,
+    self,
     instances::{InstanceError, cache},
-    texture::{TextureId, TextureResource},
+    texture::{self, TextureId, TextureResource},
 };
 
 fn get_bind_group<T: SpriteInstance>(
     texture: TextureId,
     inst: &T,
 ) -> Result<wgpu::BindGroup, InstanceError> {
-    let owner = context::try_context(texture.context).ok_or(InstanceError::MissingTexture)?.texture_storage.clone();
-    let storage = owner.read().unwrap();
-    let resource = storage.get(texture.raw).ok_or(InstanceError::MissingTexture)?;
-    let resource = match (inst.sprite(), resource) {
+    let resource = texture::get(texture).ok_or(InstanceError::MissingTexture)?;
+    let resource = match (inst.sprite(), resource.as_ref()) {
         (Sprite::Separate { .. }, TextureResource::Separate(resource)) => resource,
         (Sprite::Array { layer, .. }, TextureResource::Array(resource))
         | (

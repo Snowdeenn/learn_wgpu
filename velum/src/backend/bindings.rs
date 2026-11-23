@@ -533,7 +533,7 @@ pub(crate) fn validate_resource(
         }
         (wgpu::BindingType::Texture { .. }, BindingResource::LegacyTexture(owner))
         | (wgpu::BindingType::Sampler(_), BindingResource::LegacySampler(owner)) => {
-            if owner.id().context != context {
+            if owner.id().context_id() != context {
                 return Err(fail("texture belongs to a different context"));
             }
             legacy_texture(owner.id())?;
@@ -550,13 +550,10 @@ pub(crate) fn validate_resource(
 fn legacy_texture(
     id: crate::backend::texture::TextureId,
 ) -> RenderResult<(wgpu::TextureView, wgpu::Sampler)> {
-    use crate::backend::texture::TextureResource;
-    let ctx = super::gpu(id.context)?;
-    let textures = ctx.texture_storage.read().unwrap();
-    let resource = match textures
-        .get(id.raw)
-        .ok_or_else(|| RenderError::new("texture", "missing resource"))?
-    {
+    use crate::backend::texture::{self, TextureResource};
+    let texture = texture::get(id)
+        .ok_or_else(|| RenderError::new("texture", "missing resource"))?;
+    let resource = match texture.as_ref() {
         TextureResource::Separate(resource)
         | TextureResource::Array(resource)
         | TextureResource::Atlas { resource, .. } => resource,

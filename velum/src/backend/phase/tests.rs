@@ -1,5 +1,5 @@
 use super::*;
-use crate::backend::{PipelineContext, pipeline};
+use crate::backend::{PipelineContext, context, pipeline};
 use new_collection::Arena;
 
 struct TestPipeline;
@@ -106,14 +106,14 @@ fn existing_batchers_only_merge_consecutive_resources() {
         vec![0., 1., 2., 3.]
     );
 
-    let mut textures = Arena::<(), TextureResource>::new();
+    let mut textures = Arena::<(), std::sync::Arc<TextureResource>>::new();
     let a = textures.insert(());
     let b = textures.insert(());
     let mut sprites: Vec<_> = [a, a, b, a]
         .into_iter()
         .map(|texture| PreparedSprite {
             sprite: Sprite::Separate {
-                texture: crate::backend::texture::TextureId { context: None, raw: texture },
+                texture: crate::backend::texture::TextureId::for_test(texture),
                 indices: 0..6,
             },
             instance: instance(0.),

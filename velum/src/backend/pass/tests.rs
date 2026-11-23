@@ -494,21 +494,9 @@ fn owned_resource_lifecycle() {
     });
     let (owner, _) = crate::backend::texture::register_texture(None, raw);
     let texture_id = owner.id();
-    assert!(
-        context::texture_storage(None)
-            .read()
-            .unwrap()
-            .get(texture_id.raw)
-            .is_some()
-    );
+    assert!(crate::backend::texture::get(texture_id).is_some());
     drop(owner);
-    assert!(
-        context::texture_storage(None)
-            .read()
-            .unwrap()
-            .get(texture_id.raw)
-            .is_none()
-    );
+    assert!(crate::backend::texture::get(texture_id).is_none());
 
     let (mesh, _) = crate::geometry::create_rect_vertices();
     let owner = crate::backend::shape::register(None, mesh);

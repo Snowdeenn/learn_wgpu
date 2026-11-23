@@ -8,7 +8,7 @@ use crate::backend::{
     context::ContextId,
     shape::ShapeInstance,
     sprite::{RenderInstance, Sprite, SpriteInstance},
-    texture::TextureResource,
+    texture::{self, TextureResource},
 };
 use crate::{OwnedResource, SharedResource};
 use std::collections::BTreeMap;
@@ -253,12 +253,9 @@ fn resolve_sprite<T: SpriteInstance>(instance: &T) -> RenderResult<RenderInstanc
             "standard quad requires indices 0..6; use a custom render object for other geometry",
         ));
     }
-    let gpu = super::gpu(texture.context)?;
-    let textures = gpu.texture_storage.read().unwrap();
-    let texture = textures
-        .get(texture.raw)
+    let texture = texture::get(texture)
         .ok_or_else(|| RenderError::new("sprites", "missing texture"))?;
-    match (instance.sprite(), texture) {
+    match (instance.sprite(), texture.as_ref()) {
         (Sprite::Separate { .. }, TextureResource::Separate(_)) => render.layer = 0,
         (Sprite::Array { layer, .. }, TextureResource::Array(resource))
         | (

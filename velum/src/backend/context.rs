@@ -4,15 +4,10 @@ use std::sync::{Arc, OnceLock, RwLock};
 use crate::backend::buffer::BufferArena;
 use crate::{OwnedResource, ResourceHandle};
 
-use super::texture::TextureResource;
-
-type TextureStorage = Arena<TextureResource>;
-
 #[derive(Debug)]
 pub struct Context {
     pub queue: wgpu::Queue,
     pub device: wgpu::Device,
-    pub texture_storage: Arc<RwLock<TextureStorage>>,
     pub(super) buffer: Arc<RwLock<BufferArena>>,
 }
 
@@ -46,13 +41,11 @@ impl Context {
         }))
         .map_err(InitError::Device)?;
 
-        let texture_storage = Arc::new(RwLock::new(TextureStorage::new()));
         let buffer = Arc::new(RwLock::new(BufferArena::new()));
 
         Ok(Context {
             queue,
             device,
-            texture_storage,
             buffer,
         })
     }
@@ -74,7 +67,6 @@ pub fn init_from(device: wgpu::Device, queue: wgpu::Queue) -> Result<(), InitErr
         .set(Arc::new(Context {
             device,
             queue,
-            texture_storage: Arc::new(RwLock::new(TextureStorage::new())),
             buffer: Arc::new(RwLock::new(BufferArena::new())),
         }))
         .map_err(|_| InitError::AlreadyInitialized)
@@ -103,7 +95,6 @@ pub fn register(device: wgpu::Device, queue: wgpu::Queue) -> OwnedResource<Conte
     let raw = contexts().write().unwrap().insert(Arc::new(Context {
         queue,
         device,
-        texture_storage: Arc::new(RwLock::new(TextureStorage::new())),
         buffer: Arc::new(RwLock::new(BufferArena::new())),
     }));
     OwnedResource::new(ContextId {
@@ -169,10 +160,6 @@ pub fn device(id: Option<ContextId>) -> wgpu::Device {
 
 pub fn queue(id: Option<ContextId>) -> wgpu::Queue {
     context(id).queue.clone()
-}
-
-pub fn texture_storage(id: Option<ContextId>) -> Arc<RwLock<TextureStorage>> {
-    Arc::clone(&context(id).texture_storage)
 }
 
 pub(super) fn buffer(id: Option<ContextId>) -> Arc<RwLock<BufferArena>> {

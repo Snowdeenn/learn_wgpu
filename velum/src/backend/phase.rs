@@ -26,13 +26,13 @@ use new_collection::Id;
 use std::fmt;
 
 use super::{
-    bind, context,
+    bind,
     instances::Instance,
     pipeline::DrawPipeline,
     shape::{self, MeshResource, ShapeInstance},
     sort::{DrawSortKey, SortPolicy},
     sprite::{self, RenderInstance, Sprite, SpriteInstance},
-    texture::TextureResource,
+    texture::{self, TextureResource},
 };
 
 #[derive(Clone)]
@@ -335,10 +335,8 @@ fn validate_sprite(sprite: &Sprite) -> Result<(), &'static str> {
         | Sprite::Animated { texture, .. }
         | Sprite::Atlas { texture, .. } => *texture,
     };
-    let storage_owner = context::try_context(texture.context).ok_or("Missing texture")?.texture_storage.clone();
-    let storage = storage_owner.read().unwrap();
-    let resource = storage.get(texture.raw).ok_or("Missing texture")?;
-    match (sprite, resource) {
+    let resource = texture::get(texture).ok_or("Missing texture")?;
+    match (sprite, resource.as_ref()) {
         (Sprite::Separate { .. }, TextureResource::Separate(_)) => Ok(()),
         (Sprite::Array { layer, .. }, TextureResource::Array(resource))
         | (

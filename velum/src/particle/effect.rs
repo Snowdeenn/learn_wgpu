@@ -218,7 +218,7 @@ mod tests {
             })],
             update_modules: vec![Box::new(UpdateAge), Box::new(IntegratePosition)],
             render_modules: vec![Box::new(RenderTrail {
-                texture: crate::backend::texture::TextureId { context: None, raw: new_collection::Id::zero() },
+                texture: crate::backend::texture::TextureId::for_test(new_collection::Id::zero()),
                 indices: 0..6,
                 max_points: 3,
                 width: 1.0,

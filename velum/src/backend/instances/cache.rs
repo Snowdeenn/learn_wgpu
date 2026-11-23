@@ -73,10 +73,9 @@ pub(in crate::backend) fn prepare<T: SpriteInstance>(
             texture, region, ..
         } = instance.sprite()
         {
-            let storage_owner = crate::backend::context::try_context(texture.context).ok_or(InstanceError::MissingTexture)?.texture_storage.clone();
-            let storage = storage_owner.read().unwrap();
-            let resource = storage.get(texture.raw).ok_or(InstanceError::MissingTexture)?;
-            let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource else {
+            let resource = crate::backend::texture::get(*texture)
+                .ok_or(InstanceError::MissingTexture)?;
+            let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource.as_ref() else {
                 return Err(InstanceError::TextureKindMismatch);
             };
             let region = regions

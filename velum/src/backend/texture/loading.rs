@@ -50,7 +50,11 @@ pub fn build_atlas_region(
         .collect()
 }
 
-pub fn load_texture(context_id: Option<crate::backend::context::ContextId>, label: &str, path: &str) -> Result<wgpu::Texture, image::ImageError> {
+pub fn load_texture(
+    context_id: Option<crate::backend::context::ContextId>,
+    label: &str,
+    path: &str,
+) -> Result<wgpu::Texture, image::ImageError> {
     let image = image::open(path)?;
     let rgba_image = image.to_rgba8();
 
@@ -167,7 +171,10 @@ pub fn load_texture_array(
 pub fn register_texture(
     context_id: Option<context::ContextId>,
     raw: wgpu::Texture,
-) -> (OwnedResource<crate::backend::texture::TextureId>, wgpu::BindGroupLayout) {
+) -> (
+    OwnedResource<crate::backend::texture::TextureId>,
+    wgpu::BindGroupLayout,
+) {
     let tex = Texture::from_raw(raw);
     let sampler = sampler::filtering(context_id, "");
     let (lay, group) = crate::bind_group! { context_id;
@@ -179,19 +186,20 @@ pub fn register_texture(
         sampler: sampler.as_raw().clone(),
         bind_group: group,
     });
-    let id = {
-        let storage_owner = context::texture_storage(context_id);
-        let mut storage = storage_owner.write().unwrap();
-        storage.insert(resource)
-    };
 
-    (OwnedResource::new(super::TextureId { context: context_id, raw: id }), lay)
+    (super::resource::insert(context_id, resource), lay)
 }
 
 pub fn register_texture_array(
     context_id: Option<context::ContextId>,
     array: Texture,
-) -> Result<(OwnedResource<crate::backend::texture::TextureId>, wgpu::BindGroupLayout), &'static str> {
+) -> Result<
+    (
+        OwnedResource<crate::backend::texture::TextureId>,
+        wgpu::BindGroupLayout,
+    ),
+    &'static str,
+> {
     let dim = array.as_raw().dimension();
     if !matches!(dim, wgpu::TextureDimension::D2) || array.as_raw().depth_or_array_layers() == 1 {
         return Err("Only array texture can be use with register_texture_array()");
@@ -208,20 +216,20 @@ pub fn register_texture_array(
         bind_group: group,
     };
 
-    let id = {
-        let storage_owner = context::texture_storage(context_id);
-        let mut storage = storage_owner.write().unwrap();
-        storage.insert(TextureResource::Array(resource))
-    };
-
-    Ok((OwnedResource::new(super::TextureId { context: context_id, raw: id }), lay))
+    Ok((
+        super::resource::insert(context_id, TextureResource::Array(resource)),
+        lay,
+    ))
 }
 
 pub fn register_atlas(
     context_id: Option<context::ContextId>,
     atlas: wgpu::Texture,
     regions: Vec<AtlasRegion>,
-) -> (OwnedResource<crate::backend::texture::TextureId>, Vec<Id<AtlasRegion>>) {
+) -> (
+    OwnedResource<crate::backend::texture::TextureId>,
+    Vec<Id<AtlasRegion>>,
+) {
     let tex = Texture::from_raw(atlas);
     let sampler = sampler::pixel_art(context_id, "Atlas sampler");
     let (_, group) = crate::bind_group! { context_id;
@@ -244,11 +252,6 @@ pub fn register_atlas(
         },
         regions: atlas_regions,
     };
-    let id = {
-        let storage_owner = context::texture_storage(context_id);
-        let mut storage = storage_owner.write().unwrap();
-        storage.insert(resource)
-    };
 
-    (OwnedResource::new(super::TextureId { context: context_id, raw: id }), region_ids)
+    (super::resource::insert(context_id, resource), region_ids)
 }

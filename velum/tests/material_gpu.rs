@@ -533,7 +533,22 @@ fn frame_leases_and_contexts() {
     assert_eq!(resized.context_id(), context_id);
     let raw = texture::TextureBuilder::new().build_in(context_id);
     let (image, _) = texture::register_texture(context_id, raw);
-    assert!(texture::remove(image.id()));
+    let image_id = image.id();
+    assert_eq!(image_id.context_id(), context_id);
+    assert!(texture::get(image_id).is_some());
+    let image = image.share();
+    assert!(velum::try_binding_set! {
+        context: None,
+        group: 0,
+        entries: [0 => BindingResource::LegacyTexture(image.clone())]
+    }.is_err());
+    assert!(velum::try_binding_set! {
+        context: context_id,
+        group: 0,
+        entries: [0 => BindingResource::LegacyTexture(image.clone())]
+    }.is_ok());
+    assert!(texture::remove(image_id));
+    assert!(texture::get(image_id).is_none());
     buffer::try_write_buffer(&buffer, 0, &[1, 2, 3, 4]).unwrap();
     assert!(buffer::try_write_buffer(&buffer, 4, &[1, 2, 3, 4]).is_err());
     let region = BufferRegion::from_shared(buffer.share()).unwrap();

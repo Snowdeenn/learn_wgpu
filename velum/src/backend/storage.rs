@@ -36,6 +36,25 @@ impl<T: Stored> PartialEq for ResourceId<T> {
     }
 }
 impl<T: Stored> Eq for ResourceId<T> {}
+impl<T: Stored> PartialOrd for ResourceId<T> {
+    fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(rhs))
+    }
+}
+impl<T: Stored> Ord for ResourceId<T> {
+    fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+        self.raw.cmp(&rhs.raw)
+    }
+}
+#[cfg(test)]
+impl<T: Stored> ResourceId<T> {
+    pub(crate) fn from_raw(raw: Id<Arc<T>>) -> Self {
+        Self {
+            raw,
+            marker: PhantomData,
+        }
+    }
+}
 impl<T: Stored> std::fmt::Debug for ResourceId<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}({})", std::any::type_name::<T>(), self.raw)
@@ -47,14 +66,18 @@ impl<T: Stored> ResourceHandle for ResourceId<T> {
     }
 }
 pub fn insert<T: Stored>(value: T) -> OwnedResource<ResourceId<T>> {
-    OwnedResource::new(ResourceId {
+    OwnedResource::new(insert_id(value))
+}
+
+pub(super) fn insert_id<T: Stored>(value: T) -> ResourceId<T> {
+    ResourceId {
         raw: T::registry()
             .entries
             .write()
             .unwrap()
             .insert(Arc::new(value)),
         marker: PhantomData,
-    })
+    }
 }
 pub fn get<T: Stored>(id: ResourceId<T>) -> Option<Arc<T>> {
     T::registry().entries.read().unwrap().get(id.raw).cloned()
