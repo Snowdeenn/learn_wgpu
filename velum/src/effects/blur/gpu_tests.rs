@@ -5,7 +5,7 @@ use crate::{RenderData, backend::context};
 pub(crate) fn gpu_regression() {
     let device = context::device(None);
     let source = || {
-        target::register(RenderTargetDescriptor {
+        target::register(None, RenderTargetDescriptor {
             label: "Blur source regression",
             size: TargetSize::Window {
                 width: 5,
@@ -130,7 +130,7 @@ pub(crate) fn gpu_regression() {
     blur.settings.radius = 0;
     assert_eq!(render(&mut blur), impulse);
 
-    target::resize_window_targets([8, 8]);
+    target::resize_window_targets(None, [8, 8]);
     upload(blue.id(), [0, 255, 0, 255]);
     assert_eq!(&render(&mut blur)[..4], &[0, 255, 0, 255]);
     assert_eq!(target::get(blur.output()).unwrap().size(), [8, 8]);

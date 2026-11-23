@@ -47,7 +47,7 @@ impl ResourceHandle for Id<MeshResource> {
     }
 }
 
-pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
+pub fn register(context_id: Option<crate::backend::context::ContextId>, mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
     assert!(!mesh.vertices().is_empty(), "A mesh must contain vertices");
     assert!(!mesh.indices().is_empty(), "A mesh must contain indices");
     assert!(
@@ -57,9 +57,9 @@ pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
         "Mesh index out of bounds"
     );
     let index_count = u32::try_from(mesh.indices().len()).expect("Too many mesh indices");
-    let vertices = buffer::vertex(mesh.vertices().len() as u64)
+    let vertices = buffer::vertex(context_id, mesh.vertices().len() as u64)
         .expect("Impossible d'allouer les sommets du mesh");
-    let indices = match buffer::index(mesh.indices().len() as u64) {
+    let indices = match buffer::index(context_id, mesh.indices().len() as u64) {
         Ok(indices) => indices,
         Err(error) => {
             drop(vertices);
@@ -71,7 +71,7 @@ pub fn register(mesh: Mesh) -> OwnedResource<Id<MeshResource>> {
     let vertices = vertices.share();
     let indices = indices.share();
     let geometry = super::geometry::try_register(super::Geometry {
-        context: None,
+        context: context_id,
         vertices: vec![super::VertexBuffer {
             slot: 0,
             region: super::BufferRegion::from_shared(vertices.clone())

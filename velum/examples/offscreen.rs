@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let material = velum::try_material! { template: template, bindings: [] }?;
     let cameras = standard::Cameras::new(None, slots.camera)?;
     let mesh =
-        velum::backend::shape::register(velum::geometry::create_rect_vertices().0)
+        velum::backend::shape::register(None, velum::geometry::create_rect_vertices().0)
             .share();
     let mut particles = EffectInstance::new(
         Arc::new(EffectDescription {
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [0.; 2],
     );
     particles.update(0.016);
-    let source = target::register(RenderTargetDescriptor {
+    let source = target::register(None, RenderTargetDescriptor {
         label: "World",
         size: TargetSize::Window {
             width: 320,
@@ -144,7 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             view_formats: &[],
         });
         let mut frame = OffscreenFrame::new(None, output.create_view(&Default::default()))?;
-        target::resize_window_targets(size);
+        target::resize_window_targets(None, size);
         renderer.set_effect_active(blur, index != 1)?;
         presenter.set_source(renderer.resolve_source(EffectSource::Output(blur))?)?;
         let dpi = if index == 2 { 1.5 } else { 1. };

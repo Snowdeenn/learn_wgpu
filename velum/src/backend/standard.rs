@@ -140,7 +140,7 @@ pub fn try_template(
 }
 pub fn try_sprite_material(
     template: SharedResource<MaterialTemplateId>,
-    texture: SharedResource<new_collection::Id<TextureResource>>,
+    texture: SharedResource<crate::backend::texture::TextureId>,
     slots: Slots,
 ) -> RenderResult<OwnedResource<MaterialId>> {
     let mut groups: BTreeMap<u32, Vec<(u32, BindingResource)>> = BTreeMap::new();
@@ -253,10 +253,10 @@ fn resolve_sprite<T: SpriteInstance>(instance: &T) -> RenderResult<RenderInstanc
             "standard quad requires indices 0..6; use a custom render object for other geometry",
         ));
     }
-    let gpu = super::gpu(None)?;
+    let gpu = super::gpu(texture.context)?;
     let textures = gpu.texture_storage.read().unwrap();
     let texture = textures
-        .get(texture)
+        .get(texture.raw)
         .ok_or_else(|| RenderError::new("sprites", "missing texture"))?;
     match (instance.sprite(), texture) {
         (Sprite::Separate { .. }, TextureResource::Separate(_)) => render.layer = 0,

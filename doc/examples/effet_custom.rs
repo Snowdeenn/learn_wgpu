@@ -26,7 +26,7 @@ impl OverlayEffect {
 
     /// Call only after initializing Velum's default GPU context.
     pub fn new(format: wgpu::TextureFormat, resolution: [u32; 2]) -> Self {
-        let output = target::register(RenderTargetDescriptor {
+        let output = target::register(None, RenderTargetDescriptor {
             label: "Custom overlay output",
             size: TargetSize::Window {
                 width: resolution[0],

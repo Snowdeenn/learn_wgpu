@@ -35,7 +35,7 @@ pub fn build_scene(
 ) -> Result<(Scene, DemoHandles), Error> {
     let mut data = RenderData::new();
     let mut renderer = SceneRenderer::new();
-    let source = target::register(RenderTargetDescriptor {
+    let source = target::register(None, RenderTargetDescriptor {
         label: "Documentation source",
         size: TargetSize::Window {
             width: resolution[0],

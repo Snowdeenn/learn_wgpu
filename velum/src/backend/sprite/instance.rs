@@ -1,7 +1,7 @@
 use crate::backend::DrawSortKey;
 use crate::backend::{
     instances::{Instance, InstanceData},
-    texture::{AtlasRegion, TextureResource},
+    texture::{AtlasRegion, TextureId},
 };
 use new_collection::Id;
 
@@ -23,7 +23,7 @@ pub struct RenderInstance {
 #[derive(Debug, Clone)]
 pub enum Sprite {
     Separate {
-        texture: Id<TextureResource>,
+        texture: TextureId,
         indices: std::ops::Range<u32>,
     },
     #[allow(
@@ -31,17 +31,17 @@ pub enum Sprite {
         reason = "API du moteur conservee pour les autres scenes et modules."
     )]
     Array {
-        texture: Id<TextureResource>,
+        texture: TextureId,
         layer: u32,
         indices: std::ops::Range<u32>,
     },
     Atlas {
-        texture: Id<TextureResource>,
+        texture: TextureId,
         region: Id<AtlasRegion>,
         indices: std::ops::Range<u32>,
     },
     Animated {
-        texture: Id<TextureResource>,
+        texture: TextureId,
         layers: std::ops::Range<u32>,
         current_layer: u32,
         elapsed: f32,

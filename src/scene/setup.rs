@@ -63,12 +63,12 @@ pub fn initialize(
 
     let mut instance_data = Vec::new();
 
-    let texture_a = backend::load_texture("Drole", "assets/textures/image2.webp").unwrap();
-    let texture_b = backend::load_texture("Drole2", "assets/textures/thats-funny.webp").unwrap();
+    let texture_a = backend::load_texture(None, "Drole", "assets/textures/image2.webp").unwrap();
+    let texture_b = backend::load_texture(None, "Drole2", "assets/textures/thats-funny.webp").unwrap();
 
-    let (id_a, lay_a) = backend::register_texture(texture_a);
+    let (id_a, lay_a) = backend::register_texture(None, texture_a);
     let id_a = keep(&mut data, id_a);
-    let (id_b, _) = backend::register_texture(texture_b);
+    let (id_b, _) = backend::register_texture(None, texture_b);
     let id_b = keep(&mut data, id_b);
 
     let path = vec![
@@ -80,8 +80,8 @@ pub fn initialize(
         "assets/textures/idle/IDLE5.png",
         "assets/textures/idle/IDLE6.png",
     ];
-    let texture_array = backend::load_texture_array("text array", &path).unwrap();
-    let (id_tex_array_a, tex_array_lay_a) = backend::register_texture_array(texture_array).unwrap();
+    let texture_array = backend::load_texture_array(None, "text array", &path).unwrap();
+    let (id_tex_array_a, tex_array_lay_a) = backend::register_texture_array(None, texture_array).unwrap();
     let id_tex_array_a = keep(&mut data, id_tex_array_a);
 
     let path_b = vec![
@@ -95,8 +95,8 @@ pub fn initialize(
         "assets/textures/run/RUN7.png",
     ];
 
-    let tex_array_b = backend::load_texture_array("Run", &path_b).unwrap();
-    let (id_tex_array_b, _) = backend::register_texture_array(tex_array_b).unwrap();
+    let tex_array_b = backend::load_texture_array(None, "Run", &path_b).unwrap();
+    let (id_tex_array_b, _) = backend::register_texture_array(None, tex_array_b).unwrap();
     let id_tex_array_b = keep(&mut data, id_tex_array_b);
 
     let path_c = vec![
@@ -107,18 +107,18 @@ pub fn initialize(
         "assets/textures/attack/ATTACK2_4.png",
     ];
 
-    let tex_array_c = backend::load_texture_array("Attack", &path_c).unwrap();
-    let (id_tex_array_c, _) = backend::register_texture_array(tex_array_c).unwrap();
+    let tex_array_c = backend::load_texture_array(None, "Attack", &path_c).unwrap();
+    let (id_tex_array_c, _) = backend::register_texture_array(None, tex_array_c).unwrap();
     let id_tex_array_c = keep(&mut data, id_tex_array_c);
 
     let (rect_mesh, _) = crate::geometry::create_rect_vertices();
     let (circle_mesh, _) = crate::geometry::create_circle_vertices(crate::geometry::CircleOptions::default());
     let (triangle_mesh, _) = crate::geometry::create_triangle_vertices();
-    let rectangle = backend::shape::register(rect_mesh.clone());
+    let rectangle = backend::shape::register(None, rect_mesh.clone());
     let rectangle = keep(&mut data, rectangle);
-    let circle = backend::shape::register(circle_mesh.clone());
+    let circle = backend::shape::register(None, circle_mesh.clone());
     let circle = keep(&mut data, circle);
-    let triangle = backend::shape::register(triangle_mesh);
+    let triangle = backend::shape::register(None, triangle_mesh);
     let triangle = keep(&mut data, triangle);
 
     let inst_1 = Dummy {
@@ -195,14 +195,14 @@ pub fn initialize(
     };
     instance_data.push(inst_5);
 
-    let atlas = backend::load_texture("Atlas player", "assets/textures/spritesheet.png").unwrap();
+    let atlas = backend::load_texture(None, "Atlas player", "assets/textures/spritesheet.png").unwrap();
     let regions = backend::build_atlas_region(
         "assets/textures/sprites.json",
         [atlas.width(), atlas.height()],
     )
     .unwrap();
 
-    let (id_atlas, ids_regions) = backend::register_atlas(atlas, regions);
+    let (id_atlas, ids_regions) = backend::register_atlas(None, atlas, regions);
     let id_atlas = keep(&mut data, id_atlas);
 
     let inst_6 = Dummy {
@@ -223,14 +223,14 @@ pub fn initialize(
         instance.ground_y = instance.scale[1] * 0.5;
     }
 
-    let instance_buffer = buffer::storage::<backend::RenderInstance>(instance_data.len() as u64)
+    let instance_buffer = buffer::storage::<backend::RenderInstance>(None, instance_data.len() as u64)
         .expect("Impossible d'allouer le buffer d'instances");
     let instance_buffer = keep(&mut data, instance_buffer);
 
     let vertex_buffer =
-        buffer::storage_vertex::<Vertex>(50).expect("Impossible d'allouer le buffer de sommets");
+        buffer::storage_vertex::<Vertex>(None, 50).expect("Impossible d'allouer le buffer de sommets");
     let vertex_buffer = keep(&mut data, vertex_buffer);
-    let index_buffer = buffer::index::<u32>(144).expect("Impossible d'allouer le buffer d'indices");
+    let index_buffer = buffer::index::<u32>(None, 144).expect("Impossible d'allouer le buffer d'indices");
     let index_buffer = keep(&mut data, index_buffer);
 
     let render_instances: Vec<_> = instance_data
@@ -245,7 +245,7 @@ pub fn initialize(
     let index_count = rect_mesh.indices().len() as u32;
 
     let cam_buff =
-        buffer::uniform::<math::Mat4>(1).expect("Impossible d'allouer le buffer de caméra");
+        buffer::uniform::<math::Mat4>(None, 1).expect("Impossible d'allouer le buffer de caméra");
     let cam_buff = keep(&mut data, cam_buff);
 
     let (instance_lay, _) = crate::bind_group! {
@@ -413,7 +413,7 @@ pub fn initialize(
 
     let texts = data.insert(vec![world_text, hud_text]);
 
-    let target = target::register(RenderTargetDescriptor {
+    let target = target::register(None, RenderTargetDescriptor {
         label: "Scene",
         size: TargetSize::Window {
             width: resolution[0],
@@ -425,7 +425,7 @@ pub fn initialize(
     });
     let target = keep(&mut data, target);
 
-    let particle_target = target::register(RenderTargetDescriptor {
+    let particle_target = target::register(None, RenderTargetDescriptor {
         label: "Particles source", size: TargetSize::Window { width: resolution[0], height: resolution[1] },
         format, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         sample_count: 1,
@@ -521,12 +521,13 @@ pub fn initialize(
     });
 
     let bubble = backend::load_texture(
+        None,
         "bubble",
         "assets/textures/Bubbles/Coloured/128x128/bubble_4.png",
     )
     .unwrap();
 
-    let (bubble_owner, _) = backend::register_texture(bubble);
+    let (bubble_owner, _) = backend::register_texture(None, bubble);
     velum.scene_mut(scene).unwrap().data.insert(bubble_owner);
 
     let effect = particle::spawn_effect(

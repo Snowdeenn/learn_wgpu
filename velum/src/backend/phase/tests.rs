@@ -113,7 +113,7 @@ fn existing_batchers_only_merge_consecutive_resources() {
         .into_iter()
         .map(|texture| PreparedSprite {
             sprite: Sprite::Separate {
-                texture,
+                texture: crate::backend::texture::TextureId { context: None, raw: texture },
                 indices: 0..6,
             },
             instance: instance(0.),
@@ -171,12 +171,12 @@ pub(crate) fn gpu_regression() {
             }
         "#.into()),
     });
-    let instances = buffer::storage::<RenderInstance>(1).unwrap();
+    let instances = buffer::storage::<RenderInstance>(None, 1).unwrap();
     let (instance_layout, _) = crate::bind_group! { wgpu::ShaderStages::VERTEX => instances };
-    let tint = buffer::uniform::<[f32; 4]>(1).unwrap();
+    let tint = buffer::uniform::<[f32; 4]>(None, 1).unwrap();
     buffer::write_buffer(&tint, 0, &[[1.; 4]]);
     let (tint_layout, tint_group) = crate::bind_group! { wgpu::ShaderStages::VERTEX => tint };
-    let dark = buffer::uniform::<[f32; 4]>(1).unwrap();
+    let dark = buffer::uniform::<[f32; 4]>(None, 1).unwrap();
     buffer::write_buffer(&dark, 0, &[[0., 1., 0., 1.]]);
     let (_, dark_group) = crate::bind_group! { wgpu::ShaderStages::VERTEX => dark };
     let make_texture = |color: [u8; 4]| {
@@ -204,11 +204,11 @@ pub(crate) fn gpu_regression() {
             },
             texture.size(),
         );
-        texture::register_texture(texture)
+        texture::register_texture(None, texture)
     };
     let (white, texture_layout) = make_texture([255; 4]);
     let (blue, _) = make_texture([0, 0, 255, 255]);
-    let indices = buffer::index::<u32>(3).unwrap();
+    let indices = buffer::index::<u32>(None, 3).unwrap();
     buffer::write_buffer(&indices, 0, &[0, 1, 2]);
     let flat = pipeline::register(crate::pipeline_context! {
         PhaseGpu {
@@ -228,8 +228,8 @@ pub(crate) fn gpu_regression() {
     let mut mesh = Mesh::new();
     mesh.extend_vertices_from_slice(&[Vertex::default(); 3]);
     mesh.extend_indices_from_slice(&[0, 1, 2]);
-    let mesh = shape::register(mesh);
-    let target = target::register(target::RenderTargetDescriptor {
+    let mesh = shape::register(None, mesh);
+    let target = target::register(None, target::RenderTargetDescriptor {
         label: "Phase pixels",
         size: target::TargetSize::Fixed {
             width: 4,

@@ -50,7 +50,7 @@ pub fn build_atlas_region(
         .collect()
 }
 
-pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::ImageError> {
+pub fn load_texture(context_id: Option<crate::backend::context::ContextId>, label: &str, path: &str) -> Result<wgpu::Texture, image::ImageError> {
     let image = image::open(path)?;
     let rgba_image = image.to_rgba8();
 
@@ -64,9 +64,9 @@ pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::Ima
             height,
             depth_or_array_layers: 1,
         })
-        .build();
+        .build_in(context_id);
 
-    context::queue(None).write_texture(
+    context::queue(context_id).write_texture(
         wgpu::TexelCopyTextureInfoBase {
             texture: &dst_tex,
             mip_level: 0,
@@ -87,6 +87,7 @@ pub fn load_texture(label: &str, path: &str) -> Result<wgpu::Texture, image::Ima
 }
 
 pub fn load_texture_array(
+    context_id: Option<crate::backend::context::ContextId>,
     label: &str,
     paths: &[&str],
 ) -> Result<Texture, Box<dyn std::error::Error>> {
@@ -109,7 +110,7 @@ pub fn load_texture_array(
     }
 
     let layers = u32::try_from(images.len())?;
-    let limits = context::device(None).limits();
+    let limits = context::device(context_id).limits();
 
     if layers > limits.max_texture_array_layers {
         return Err("Nombre de couches supérieur à la limite GPU".into());
@@ -126,10 +127,10 @@ pub fn load_texture_array(
             height,
             depth_or_array_layers: layers,
         })
-        .build();
+        .build_in(context_id);
 
     for (layer, image) in images.iter().enumerate() {
-        context::queue(None).write_texture(
+        context::queue(context_id).write_texture(
             wgpu::TexelCopyTextureInfoBase {
                 texture: &texture,
                 mip_level: 0,
@@ -164,11 +165,12 @@ pub fn load_texture_array(
     ))
 }
 pub fn register_texture(
+    context_id: Option<context::ContextId>,
     raw: wgpu::Texture,
-) -> (OwnedResource<Id<TextureResource>>, wgpu::BindGroupLayout) {
+) -> (OwnedResource<crate::backend::texture::TextureId>, wgpu::BindGroupLayout) {
     let tex = Texture::from_raw(raw);
-    let sampler = sampler::filtering("");
-    let (lay, group) = crate::bind_group! {
+    let sampler = sampler::filtering(context_id, "");
+    let (lay, group) = crate::bind_group! { context_id;
         wgpu::ShaderStages::VERTEX_FRAGMENT => tex,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler
     };
@@ -178,24 +180,25 @@ pub fn register_texture(
         bind_group: group,
     });
     let id = {
-        let storage_owner = context::texture_storage(None);
+        let storage_owner = context::texture_storage(context_id);
         let mut storage = storage_owner.write().unwrap();
         storage.insert(resource)
     };
 
-    (OwnedResource::new(id), lay)
+    (OwnedResource::new(super::TextureId { context: context_id, raw: id }), lay)
 }
 
 pub fn register_texture_array(
+    context_id: Option<context::ContextId>,
     array: Texture,
-) -> Result<(OwnedResource<Id<TextureResource>>, wgpu::BindGroupLayout), &'static str> {
+) -> Result<(OwnedResource<crate::backend::texture::TextureId>, wgpu::BindGroupLayout), &'static str> {
     let dim = array.as_raw().dimension();
     if !matches!(dim, wgpu::TextureDimension::D2) || array.as_raw().depth_or_array_layers() == 1 {
         return Err("Only array texture can be use with register_texture_array()");
     }
 
-    let sampler = sampler::pixel_art("Array Sampler");
-    let (lay, group) = crate::bind_group! {
+    let sampler = sampler::pixel_art(context_id, "Array Sampler");
+    let (lay, group) = crate::bind_group! { context_id;
         wgpu::ShaderStages::VERTEX_FRAGMENT => array,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler
     };
@@ -206,21 +209,22 @@ pub fn register_texture_array(
     };
 
     let id = {
-        let storage_owner = context::texture_storage(None);
+        let storage_owner = context::texture_storage(context_id);
         let mut storage = storage_owner.write().unwrap();
         storage.insert(TextureResource::Array(resource))
     };
 
-    Ok((OwnedResource::new(id), lay))
+    Ok((OwnedResource::new(super::TextureId { context: context_id, raw: id }), lay))
 }
 
 pub fn register_atlas(
+    context_id: Option<context::ContextId>,
     atlas: wgpu::Texture,
     regions: Vec<AtlasRegion>,
-) -> (OwnedResource<Id<TextureResource>>, Vec<Id<AtlasRegion>>) {
+) -> (OwnedResource<crate::backend::texture::TextureId>, Vec<Id<AtlasRegion>>) {
     let tex = Texture::from_raw(atlas);
-    let sampler = sampler::pixel_art("Atlas sampler");
-    let (_, group) = crate::bind_group! {
+    let sampler = sampler::pixel_art(context_id, "Atlas sampler");
+    let (_, group) = crate::bind_group! { context_id;
         wgpu::ShaderStages::VERTEX_FRAGMENT => tex,
         wgpu::ShaderStages::VERTEX_FRAGMENT => sampler
     };
@@ -241,10 +245,10 @@ pub fn register_atlas(
         regions: atlas_regions,
     };
     let id = {
-        let storage_owner = context::texture_storage(None);
+        let storage_owner = context::texture_storage(context_id);
         let mut storage = storage_owner.write().unwrap();
         storage.insert(resource)
     };
 
-    (OwnedResource::new(id), region_ids)
+    (OwnedResource::new(super::TextureId { context: context_id, raw: id }), region_ids)
 }

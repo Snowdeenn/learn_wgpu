@@ -15,7 +15,7 @@
 //!     -> Result<velum::OwnedResource<target::RenderTargetId>, context::InitError>
 //! {
 //!     context::init(adapter)?;
-//!     let owner = target::register(descriptor);
+//!     let owner = target::register(None, descriptor);
 //!     let target = target::get(owner.id()).expect("registered target");
 //!     Ok(owner)
 //! }

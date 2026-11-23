@@ -3,7 +3,7 @@ use std::ops::Range;
 use new_collection::Id;
 
 use crate::backend::shape::MeshResource;
-use crate::backend::texture::TextureResource;
+use crate::backend::texture::TextureId;
 use crate::backend::{RenderInstance, Sprite};
 use crate::particle::data::{Access, ParticleView};
 use crate::particle::modules::RenderModuleOutput;
@@ -15,7 +15,7 @@ use super::{ParticleMask, ParticleShapeInstance, ParticleSpriteInstance, RenderM
     reason = "API du moteur conservee pour les autres scenes et modules."
 )]
 pub struct RenderSprite {
-    pub texture: Id<TextureResource>,
+    pub texture: TextureId,
     pub indices: Range<u32>,
 }
 

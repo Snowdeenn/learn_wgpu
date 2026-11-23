@@ -102,7 +102,7 @@ impl Renderer {
         self.conf.width = size.width;
         self.conf.height = size.height;
         self.surface.configure(&context::device(None), &self.conf);
-        super::target::resize_window_targets([size.width, size.height]);
+        super::target::resize_window_targets(None, [size.width, size.height]);
     }
 
     pub fn begin_frame<'a>(&'a self, window: &'a Window) -> Result<Option<Frame<'a>>, &'a str> {

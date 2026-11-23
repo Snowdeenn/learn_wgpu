@@ -74,7 +74,11 @@ impl<'a> TextureBuilder<'a> {
     }
 
     pub fn build(self) -> wgpu::Texture {
-        context::device(None).create_texture(&self.desc)
+        self.build_in(None)
+    }
+
+    pub fn build_in(self, context_id: Option<crate::backend::context::ContextId>) -> wgpu::Texture {
+        context::device(context_id).create_texture(&self.desc)
     }
 }
 
@@ -95,8 +99,8 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn from_file(label: &str, path: &str) -> Result<Self, image::ImageError> {
-        Ok(Self::from_raw(backend::load_texture(label, path)?))
+    pub fn from_file(context_id: Option<crate::backend::context::ContextId>, label: &str, path: &str) -> Result<Self, image::ImageError> {
+        Ok(Self::from_raw(backend::load_texture(context_id, label, path)?))
     }
 
     pub fn from_raw(raw: wgpu::Texture) -> Self {
@@ -132,12 +136,12 @@ impl Texture {
         }
     }
 
-    pub fn array(format: wgpu::TextureFormat, size: wgpu::Extent3d) -> Self {
+    pub fn array(context_id: Option<crate::backend::context::ContextId>, format: wgpu::TextureFormat, size: wgpu::Extent3d) -> Self {
         let texture = TextureBuilder::new()
             .with_size(size)
             .with_dimension(wgpu::TextureDimension::D2)
             .with_format(format)
-            .build();
+            .build_in(context_id);
 
         let desc_view = wgpu::TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::D2Array),

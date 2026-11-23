@@ -20,10 +20,11 @@ fn storage() -> &'static Mutex<Arena<TextureBindingSet>> {
 }
 
 pub fn register(
+    context_id: Option<super::context::ContextId>,
     layout: &wgpu::BindGroupLayout,
     entries: Vec<TextureBinding>,
 ) -> Result<OwnedResource<TextureBindingSetId>, BindingSetError> {
-    let set = TextureBindingSet::new(layout.clone(), entries)?;
+    let set = TextureBindingSet::new(context_id, layout.clone(), entries)?;
     Ok(OwnedResource::new(storage().lock().unwrap().insert(set)))
 }
 
@@ -38,11 +39,9 @@ pub fn group(id: TextureBindingSetId) -> Result<wgpu::BindGroup, BindingSetError
 
 /// Reconnects an existing set while preserving the ID referenced by operations.
 pub fn update(id: TextureBindingSetId, entries: Vec<TextureBinding>) -> Result<(), BindingSetError> {
-    let layout = storage().lock().unwrap().get(id)
-        .ok_or(BindingSetError::MissingSet(id))?.layout.clone();
-    let replacement = TextureBindingSet::new(layout, entries)?;
     let mut sets = storage().lock().unwrap();
-    *sets.get_mut(id).ok_or(BindingSetError::MissingSet(id))? = replacement;
+    let set = sets.get_mut(id).ok_or(BindingSetError::MissingSet(id))?;
+    *set = TextureBindingSet::new(set.context_id, set.layout.clone(), entries)?;
     Ok(())
 }
 

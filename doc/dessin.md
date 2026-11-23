@@ -29,7 +29,7 @@ une conversion complète supplémentaire quand on connaît déjà la clé.
 
 `geometry::mesh::Mesh` permet d'ajouter vertices et indices. Les helpers
 `create_rect_vertices`, `create_triangle_vertices`, `create_circle_vertices`
-produisent des meshes CPU. `shape::register(mesh)` les enregistre au GPU et
+produisent des meshes CPU. `shape::register(None, mesh)` les enregistre au GPU et
 retourne un propriétaire. Le mesh expose ensuite un ID aux instances.
 
 `shape::Shape` est un type de forme prêt à employer. Ses conversions de profondeur

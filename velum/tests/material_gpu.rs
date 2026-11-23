@@ -287,7 +287,7 @@ fn sprite_kinds_and_stable_blending() {
         );
         let (owner, sprite) = match kind {
             0 => {
-                let (owner, _) = texture::register_texture(raw);
+                let (owner, _) = texture::register_texture(None, raw);
                 let sprite = Sprite::Separate {
                     texture: owner.id(),
                     indices: 0..6,
@@ -295,7 +295,7 @@ fn sprite_kinds_and_stable_blending() {
                 (owner, sprite)
             }
             1 => {
-                let (owner, _) = texture::register_texture_array(texture::Texture::with_view(
+                let (owner, _) = texture::register_texture_array(None, texture::Texture::with_view(
                     raw,
                     &wgpu::TextureViewDescriptor {
                         dimension: Some(wgpu::TextureViewDimension::D2Array),
@@ -314,6 +314,7 @@ fn sprite_kinds_and_stable_blending() {
             }
             _ => {
                 let (owner, regions) = texture::register_atlas(
+                    None,
                     raw,
                     vec![texture::AtlasRegion {
                         uv_min: [0.5, 0.],
@@ -513,7 +514,26 @@ fn frame_leases_and_contexts() {
     }
     frame.finish();
     assert_eq!(pixel(&output), [0, 0, 255, 255]);
-    let buffer = buffer::allocate_in::<u32, buffer::StorageRead>(Some(ctx.id()), 4).unwrap();
+    let context_id = Some(ctx.id());
+    let buffer = buffer::storage::<u32>(context_id, 4).unwrap();
+    assert_eq!(buffer.context_id(), context_id);
+    let descriptor = target::RenderTargetDescriptor {
+        label: "context-scoped target",
+        size: target::TargetSize::Window { width: 4, height: 4 },
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING,
+        sample_count: 1,
+    };
+    let default_target = target::register(None, descriptor);
+    let explicit_target = target::register(context_id, descriptor);
+    target::resize_window_targets(context_id, [8, 8]);
+    assert_eq!(target::get(default_target.id()).unwrap().size(), [4, 4]);
+    let resized = target::get(explicit_target.id()).unwrap();
+    assert_eq!(resized.size(), [8, 8]);
+    assert_eq!(resized.context_id(), context_id);
+    let raw = texture::TextureBuilder::new().build_in(context_id);
+    let (image, _) = texture::register_texture(context_id, raw);
+    assert!(texture::remove(image.id()));
     buffer::try_write_buffer(&buffer, 0, &[1, 2, 3, 4]).unwrap();
     assert!(buffer::try_write_buffer(&buffer, 4, &[1, 2, 3, 4]).is_err());
     let region = BufferRegion::from_shared(buffer.share()).unwrap();
@@ -543,7 +563,7 @@ impl<T> ErrorText for RenderResult<T> {
 }
 
 fn dynamic_bindings_and_transactional_updates() {
-    let buffer = buffer::uniform::<[f32; 4]>(64).unwrap().share();
+    let buffer = buffer::uniform::<[f32; 4]>(None, 64).unwrap().share();
     let region = BufferRegion::from_shared(buffer).unwrap();
     let set = bindings::try_register(BindingSet {
         context: None,
@@ -609,8 +629,8 @@ fn graphics_dynamic_offsets() {
     let alignment = context::device(None)
         .limits()
         .min_uniform_buffer_offset_alignment as u64;
-    let _prefix = buffer::uniform::<[f32; 4]>(1).unwrap();
-    let buffer = buffer::uniform::<[f32; 4]>((alignment + 16).div_ceil(16)).unwrap();
+    let _prefix = buffer::uniform::<[f32; 4]>(None, 1).unwrap();
+    let buffer = buffer::uniform::<[f32; 4]>(None, (alignment + 16).div_ceil(16)).unwrap();
     buffer::write_buffer(&buffer, 0, &[[1., 0., 0., 1.]]);
     buffer::write_buffer(&buffer, alignment, &[[0., 1., 0., 1.]]);
     let region = BufferRegion::from_shared(buffer.share()).unwrap();
@@ -660,11 +680,11 @@ fn graphics_dynamic_offsets() {
 }
 
 fn geometry_regions_and_vertex_instances() {
-    let poison = buffer::vertex::<[f32; 2]>(3).unwrap();
+    let poison = buffer::vertex::<[f32; 2]>(None, 3).unwrap();
     buffer::write_buffer(&poison, 0, &[[100.; 2]; 3]);
-    let vertices = buffer::vertex::<[f32; 2]>(3).unwrap();
+    let vertices = buffer::vertex::<[f32; 2]>(None, 3).unwrap();
     buffer::write_buffer(&vertices, 0, &[[-1., -1.], [3., -1.], [-1., 3.]]);
-    let indices = buffer::index::<u16>(6).unwrap();
+    let indices = buffer::index::<u16>(None, 6).unwrap();
     buffer::write_buffer(&indices, 0, &[0, 1, 2, 0, 1, 2]);
     let region = BufferRegion::from_shared(vertices.share()).unwrap();
     assert!(region.raw_region().1.start > 0);
@@ -776,7 +796,7 @@ fn standard_materials_particles_and_cameras() {
         .update(&velum::camera::Camera2D::new(), [4, 4], 2.0)
         .unwrap();
     let mesh =
-        velum::backend::shape::register(velum::geometry::create_rect_vertices().0)
+        velum::backend::shape::register(None, velum::geometry::create_rect_vertices().0)
             .share();
     let geometry = velum::backend::shape::geometry(mesh.id()).unwrap();
     let particles = [velum::particle::modules::ParticleShapeInstance {
@@ -805,7 +825,7 @@ fn standard_materials_particles_and_cameras() {
 }
 fn target_revisions() {
     use velum::backend::target;
-    let target = target::register(target::RenderTargetDescriptor {
+    let target = target::register(None, target::RenderTargetDescriptor {
         label: "resize",
         size: target::TargetSize::Window {
             width: 2,
@@ -844,7 +864,7 @@ fn target_revisions() {
     let geometry = geometry::try_register(Geometry::generated(None, 0..3)).unwrap();
     let texture = output(4, 4);
     for (size, color) in [(2, [255, 0, 0, 255]), (4, [0, 255, 0, 255])] {
-        target::resize_window_targets([size, size]);
+        target::resize_window_targets(None, [size, size]);
         let raw = target::get(target.id()).unwrap();
         context::queue(None).write_texture(
             raw.texture().as_raw().as_image_copy(),
@@ -867,7 +887,7 @@ fn compute_and_abandon() {
     let shader = velum::backend::try_shader(None, "compute", "@group(2) @binding(9) var<storage,read_write> x:array<u32>; @compute @workgroup_size(1) fn cs_main(){x[0]=42u;}").unwrap();
     let schema = velum::binding_schema! {2 => [bindings::buffer_entry(9,wgpu::ShaderStages::COMPUTE,wgpu::BufferBindingType::Storage {read_only:false},4,false)]};
     let ctx = velum::compute_context! {context:None,shader:ShaderEntry::new(shader,"cs_main"),schema:schema};
-    let buffer = buffer::storage_rw::<u32>(1).unwrap().share();
+    let buffer = buffer::storage_rw::<u32>(None, 1).unwrap().share();
     let set = bindings::try_register(BindingSet {
         context: None,
         group: 2,

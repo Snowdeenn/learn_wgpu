@@ -335,9 +335,9 @@ fn validate_sprite(sprite: &Sprite) -> Result<(), &'static str> {
         | Sprite::Animated { texture, .. }
         | Sprite::Atlas { texture, .. } => *texture,
     };
-    let storage_owner = context::texture_storage(None);
+    let storage_owner = context::try_context(texture.context).ok_or("Missing texture")?.texture_storage.clone();
     let storage = storage_owner.read().unwrap();
-    let resource = storage.get(texture).ok_or("Missing texture")?;
+    let resource = storage.get(texture.raw).ok_or("Missing texture")?;
     match (sprite, resource) {
         (Sprite::Separate { .. }, TextureResource::Separate(_)) => Ok(()),
         (Sprite::Array { layer, .. }, TextureResource::Array(resource))

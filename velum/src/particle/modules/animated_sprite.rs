@@ -1,9 +1,8 @@
-use new_collection::Id;
 use std::ops::Range;
 
 use super::over_lifetime::normalized_age;
 use super::{ParticleMask, ParticleSpriteInstance, RenderModule, RenderModuleOutput};
-use crate::backend::{RenderInstance, Sprite, texture::TextureResource};
+use crate::backend::{RenderInstance, Sprite, texture::TextureId};
 use crate::particle::data::{Access, ParticleView};
 
 #[allow(
@@ -11,7 +10,7 @@ use crate::particle::data::{Access, ParticleView};
     reason = "API du moteur conservee pour les autres scenes et modules."
 )]
 pub struct RenderAnimatedSprite {
-    pub texture: Id<TextureResource>,
+    pub texture: TextureId,
     pub indices: Range<u32>,
     pub layers: Range<u32>,
 }

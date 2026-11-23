@@ -21,8 +21,8 @@ fn storage() -> &'static RwLock<RenderTargetStorage> {
     STORAGE.get_or_init(|| RwLock::new(RenderTargetStorage::new()))
 }
 
-pub fn register(descriptor: RenderTargetDescriptor) -> OwnedResource<RenderTargetId> {
-    let target = Arc::new(create_target(&descriptor));
+pub fn register(context_id: Option<crate::backend::context::ContextId>, descriptor: RenderTargetDescriptor) -> OwnedResource<RenderTargetId> {
+    let target = Arc::new(create_target(context_id, &descriptor));
     OwnedResource::new(storage().write().unwrap().insert(target))
 }
 
@@ -45,13 +45,14 @@ pub fn remove(id: RenderTargetId) -> bool {
 }
 
 /// Fixed targets and zero-sized windows are left unchanged.
-pub fn resize_window_targets([width, height]: [u32; 2]) {
+pub fn resize_window_targets(context_id: Option<crate::backend::context::ContextId>, [width, height]: [u32; 2]) {
     if width == 0 || height == 0 {
         return;
     }
     let mut targets = storage().write().unwrap();
     for target in targets.iter_mut() {
-        if matches!(target.size_policy(), TargetSize::Window { .. })
+        if target.context_id == context_id
+            && matches!(target.size_policy(), TargetSize::Window { .. })
             && target.size() != [width, height]
         {
             *target = Arc::new(target.resized(width, height));

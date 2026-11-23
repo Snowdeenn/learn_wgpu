@@ -17,7 +17,7 @@ pub struct SolidResources {
 pub fn create_resources(
     format: wgpu::TextureFormat,
 ) -> Result<SolidResources, Box<dyn std::error::Error>> {
-    let color = buffer::uniform::<[f32; 4]>(1)?;
+    let color = buffer::uniform::<[f32; 4]>(None, 1)?;
     buffer::write_buffer(&color, 0, &[[0.1, 0.4, 0.8, 1.0]]);
     let (layout, group) = velum::try_bind_group! {
         wgpu::ShaderStages::FRAGMENT => color

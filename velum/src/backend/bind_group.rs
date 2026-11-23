@@ -325,7 +325,10 @@ macro_rules! try_bind_group_layout {
 
 #[macro_export]
 macro_rules! try_bind_group {
-    ($($visibility:expr => $resource:expr),+ $(,)?) => {{ (|| -> Result<_, $crate::backend::buffer::BindingError> {
+    ($($visibility:expr => $resource:expr),+ $(,)?) => {
+        $crate::try_bind_group!(None; $($visibility => $resource),+)
+    };
+    ($context_id:expr; $($visibility:expr => $resource:expr),+ $(,)?) => {{ (|| -> Result<_, $crate::backend::buffer::BindingError> {
         use $crate::backend::bind_group::Bindable;
         use $crate::backend::context;
 
@@ -350,13 +353,14 @@ macro_rules! try_bind_group {
             });
         )*
 
-        let layout = context::device(None)
+        let device = context::device($context_id);
+        let layout = device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: None,
                 entries: &layout_entries,
             });
 
-        let group = context::device(None)
+        let group = device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &layout,

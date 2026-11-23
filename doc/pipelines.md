@@ -64,7 +64,7 @@ L'entrée vertex attendue par cette macro est `vs_main`. Conserver le propriéta
 ```rust
 use velum::backend::buffer;
 
-let camera = buffer::uniform::<[f32; 4]>(1)?;
+let camera = buffer::uniform::<[f32; 4]>(None, 1)?;
 let (layout, group) = velum::try_bind_group! {
     wgpu::ShaderStages::VERTEX_FRAGMENT => camera
 }?;

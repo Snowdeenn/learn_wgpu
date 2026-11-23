@@ -1,9 +1,8 @@
 use super::SpriteInstance;
-use crate::backend::{Sprite, texture::TextureResource};
-use new_collection::Id;
+use crate::backend::{Sprite, texture::TextureId};
 
 pub struct Batch {
-    pub resource: Id<TextureResource>,
+    pub resource: TextureId,
     pub indices: std::ops::Range<u32>,
     pub range: std::ops::Range<u32>,
 }
@@ -48,7 +47,7 @@ pub fn batch_into<T: SpriteInstance>(
     }
 }
 
-fn sort_key<T: SpriteInstance>(inst: &T) -> (Id<TextureResource>, u32, u32) {
+fn sort_key<T: SpriteInstance>(inst: &T) -> (TextureId, u32, u32) {
     match inst.sprite() {
         Sprite::Separate { texture, indices }
         | Sprite::Animated {

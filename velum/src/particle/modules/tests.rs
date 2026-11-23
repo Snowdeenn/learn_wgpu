@@ -264,7 +264,7 @@ fn animation_selects_layers_and_handles_empty_ranges() {
     data.lifetime.fill(1.0);
     data.rotation.fill(0.7);
     let mut module = RenderAnimatedSprite {
-        texture: Id::zero(),
+        texture: crate::backend::texture::TextureId { context: None, raw: new_collection::Id::zero() },
         indices: 0..6,
         layers: 4..8,
     };
@@ -294,7 +294,7 @@ fn rotation_adapter_preserves_existing_sprite_output_except_angle() {
     data.rotation[0] = 1.2;
     data.pos[0] = [10.0, 20.0];
     let module = WithRotation(RenderSprite {
-        texture: Id::zero(),
+        texture: crate::backend::texture::TextureId { context: None, raw: new_collection::Id::zero() },
         indices: 0..6,
     });
     let output = render(&module, &mut data);
@@ -307,7 +307,7 @@ fn trail_uses_recent_segments_with_correct_midpoint_length_and_angle() {
     let mut data = ParticleData::new(1);
     data.trail[0].extend([[0.0, 0.0], [3.0, 0.0], [3.0, 4.0]]);
     let module = RenderTrail {
-        texture: Id::zero(),
+        texture: crate::backend::texture::TextureId { context: None, raw: new_collection::Id::zero() },
         indices: 0..6,
         max_points: 2,
         width: 0.5,

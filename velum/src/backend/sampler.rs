@@ -126,7 +126,11 @@ impl<'a> SamplerBuilder<'a> {
 
     /// Calls `device.create_sampler(&self.descriptor)` internally and consume the Builder.
     pub fn build(self) -> wgpu::Sampler {
-        context::device(None).create_sampler(&self.descriptor)
+        self.build_in(None)
+    }
+
+    pub fn build_in(self, context_id: Option<context::ContextId>) -> wgpu::Sampler {
+        context::device(context_id).create_sampler(&self.descriptor)
     }
 }
 
@@ -193,15 +197,15 @@ impl SamplingKind for Comparison {
     const BINDING_TYPE: wgpu::SamplerBindingType = wgpu::SamplerBindingType::Comparison;
 }
 
-fn create<K: SamplingKind>(desc: wgpu::SamplerDescriptor<'_>) -> Sampler<K> {
+fn create<K: SamplingKind>(context_id: Option<crate::backend::context::ContextId>, desc: wgpu::SamplerDescriptor<'_>) -> Sampler<K> {
     Sampler {
-        raw: context::device(None).create_sampler(&desc),
+        raw: context::device(context_id).create_sampler(&desc),
         _phantom: std::marker::PhantomData,
     }
 }
 
-pub fn filtering(label: &str) -> Sampler<Filtering> {
-    create(wgpu::SamplerDescriptor {
+pub fn filtering(context_id: Option<crate::backend::context::ContextId>, label: &str) -> Sampler<Filtering> {
+    create(context_id, wgpu::SamplerDescriptor {
         label: Some(label),
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
@@ -210,8 +214,8 @@ pub fn filtering(label: &str) -> Sampler<Filtering> {
     })
 }
 
-pub fn non_filtering(label: &str) -> Sampler<NonFiltering> {
-    create(wgpu::SamplerDescriptor {
+pub fn non_filtering(context_id: Option<crate::backend::context::ContextId>, label: &str) -> Sampler<NonFiltering> {
+    create(context_id, wgpu::SamplerDescriptor {
         label: Some(label),
         mag_filter: wgpu::FilterMode::Nearest,
         min_filter: wgpu::FilterMode::Nearest,
@@ -220,8 +224,8 @@ pub fn non_filtering(label: &str) -> Sampler<NonFiltering> {
     })
 }
 
-pub fn comparison(label: &str, compare: wgpu::CompareFunction) -> Sampler<Comparison> {
-    create(wgpu::SamplerDescriptor {
+pub fn comparison(context_id: Option<crate::backend::context::ContextId>, label: &str, compare: wgpu::CompareFunction) -> Sampler<Comparison> {
+    create(context_id, wgpu::SamplerDescriptor {
         label: Some(label),
         compare: Some(compare),
         mag_filter: wgpu::FilterMode::Linear,
@@ -231,8 +235,8 @@ pub fn comparison(label: &str, compare: wgpu::CompareFunction) -> Sampler<Compar
     })
 }
 
-pub fn pixel_art(label: &str) -> Sampler<Filtering> {
-    create(wgpu::SamplerDescriptor {
+pub fn pixel_art(context_id: Option<crate::backend::context::ContextId>, label: &str) -> Sampler<Filtering> {
+    create(context_id, wgpu::SamplerDescriptor {
         label: Some(label),
         mag_filter: wgpu::FilterMode::Nearest,
         min_filter: wgpu::FilterMode::Nearest,

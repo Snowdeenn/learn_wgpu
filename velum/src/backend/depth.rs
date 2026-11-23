@@ -13,7 +13,7 @@ pub struct DepthTarget {
 impl DepthTarget {
     pub fn new([width, height]: [u32; 2]) -> Self {
         Self {
-            id: target::register(RenderTargetDescriptor {
+            id: target::register(None, RenderTargetDescriptor {
                 label: "Scene depth",
                 size: TargetSize::Window { width, height },
                 format: FORMAT,

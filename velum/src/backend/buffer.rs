@@ -48,7 +48,11 @@ impl<'a> BufferBuilder<'a> {
     }
 
     pub fn build(self) -> wgpu::Buffer {
-        let device = context::device(None);
+        self.build_in(None)
+    }
+
+    pub fn build_in(self, context_id: Option<context::ContextId>) -> wgpu::Buffer {
+        let device = context::device(context_id);
 
         match self.data {
             Some(data) => device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -268,57 +272,63 @@ impl<K: BindableBufferKind> Bindable for ResolvedBuffer<K> {
 }
 
 pub fn storage<T: bytemuck::Pod>(
+    context_id: Option<crate::backend::context::ContextId>,
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, StorageRead>>, AllocError> {
-    context::buffer(None)
+    context::buffer(context_id)
         .write()
         .unwrap()
-        .allocate::<T, StorageRead>(capacity)
+        .allocate_in::<T, StorageRead>(capacity, context_id)
 }
 
 pub fn storage_vertex<T: bytemuck::Pod>(
+    context_id: Option<crate::backend::context::ContextId>,
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, StorageVertex>>, AllocError> {
-    context::buffer(None)
+    context::buffer(context_id)
         .write()
         .unwrap()
-        .allocate::<T, StorageVertex>(capacity)
+        .allocate_in::<T, StorageVertex>(capacity, context_id)
 }
 
 pub fn storage_rw<T: bytemuck::Pod>(
+    context_id: Option<crate::backend::context::ContextId>,
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, StorageReadWrite>>, AllocError> {
-    context::buffer(None)
+    context::buffer(context_id)
         .write()
         .unwrap()
-        .allocate::<T, StorageReadWrite>(capacity)
+        .allocate_in::<T, StorageReadWrite>(capacity, context_id)
 }
 
 pub fn uniform<T: bytemuck::Pod>(
+    context_id: Option<crate::backend::context::ContextId>,
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, Uniform>>, AllocError> {
-    context::buffer(None)
+    context::buffer(context_id)
         .write()
         .unwrap()
-        .allocate::<T, Uniform>(capacity)
+        .allocate_in::<T, Uniform>(capacity, context_id)
 }
 
 pub fn vertex<T: bytemuck::Pod>(
+    context_id: Option<crate::backend::context::ContextId>,
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, Vertex>>, AllocError> {
-    context::buffer(None)
+    context::buffer(context_id)
         .write()
         .unwrap()
-        .allocate::<T, Vertex>(capacity)
+        .allocate_in::<T, Vertex>(capacity, context_id)
 }
 
 pub fn index<T: bytemuck::Pod>(
+    context_id: Option<crate::backend::context::ContextId>,
     capacity: u64,
 ) -> Result<OwnedResource<Buffer<T, Index>>, AllocError> {
-    context::buffer(None)
+    context::buffer(context_id)
         .write()
         .unwrap()
-        .allocate::<T, Index>(capacity)
+        .allocate_in::<T, Index>(capacity, context_id)
 }
 
 pub fn write_buffer<T, K>(buffer: &Buffer<T, K>, offset: u64, data: &[T])

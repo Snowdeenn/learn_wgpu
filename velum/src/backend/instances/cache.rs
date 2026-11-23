@@ -38,7 +38,7 @@ impl InstanceSlot {
             return Err(InstanceError::BatchTooLarge);
         }
         let capacity = required.next_power_of_two();
-        let buffer = buffer::storage::<RenderInstance>(capacity as u64)?;
+        let buffer = buffer::storage::<RenderInstance>(None, capacity as u64)?;
         crate::backend::metrics::allocation();
         let (_, group) = crate::try_bind_group! {
             wgpu::ShaderStages::VERTEX => buffer,
@@ -73,9 +73,9 @@ pub(in crate::backend) fn prepare<T: SpriteInstance>(
             texture, region, ..
         } = instance.sprite()
         {
-            let storage_owner = crate::backend::context::texture_storage(None);
+            let storage_owner = crate::backend::context::try_context(texture.context).ok_or(InstanceError::MissingTexture)?.texture_storage.clone();
             let storage = storage_owner.read().unwrap();
-            let resource = storage.get(*texture).ok_or(InstanceError::MissingTexture)?;
+            let resource = storage.get(texture.raw).ok_or(InstanceError::MissingTexture)?;
             let crate::backend::texture::TextureResource::Atlas { regions, .. } = resource else {
                 return Err(InstanceError::TextureKindMismatch);
             };

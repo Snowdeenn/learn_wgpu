@@ -11,7 +11,7 @@ utilisés par le backend, partagés entre les scènes et les instances de `Velum
 use velum::registries::{context, target, texture};
 
 // Après context::init(&adapter) :
-let owner = target::register(descriptor);
+let owner = target::register(None, descriptor);
 let snapshot = target::get(owner.id()).unwrap();
 // Conserver owner dans l'application ou dans les données d'une scène.
 ```
@@ -27,12 +27,12 @@ Un handle copiable (`RenderTargetId`, `PipelineId<T>`, etc.) est un accès logiq
 appelle `ResourceHandle::release` pour retirer la ressource du stockage global.
 
 ```rust
-let owner = target::register(descriptor);
+let owner = target::register(None, descriptor);
 let id = owner.id();
 data.insert(owner); // La scène conserve la propriété.
 ```
 
-Ne pas écrire `let id = target::register(descriptor).id();` : le propriétaire
+Ne pas écrire `let id = target::register(None, descriptor).id();` : le propriétaire
 temporaire est détruit à la fin de l'instruction et l'ID devient invalide.
 Ne pas recréer plusieurs `OwnedResource::new(id)` sur des copies du même ID :
 le constructeur ne garantit pas l'unicité à ta place.
@@ -94,7 +94,7 @@ est passé explicitement aux opérations.
 ```rust
 use velum::backend::buffer;
 
-let uniform = buffer::uniform::<[f32; 4]>(1)?;
+let uniform = buffer::uniform::<[f32; 4]>(None, 1)?;
 buffer::write_buffer(&uniform, 0, &[[1.0, 0.5, 0.0, 1.0]]);
 ```
 
@@ -135,3 +135,5 @@ Cette présence de contextes identifiés ne garantit pas que tous les helpers de
 rendu soient indépendants du contexte par défaut. Plusieurs stockages et effets
 utilisent encore des fonctions globales/default. Ne pas mélanger des ressources
 de devices différents ; l'intégration multidevice complète n'est pas établie.
+
+Les fonctions de création des buffers, cibles, textures, samplers, maillages et groupes de textures prennent un `Option<ContextId>` en premier argument. Passez `None` pour le contexte par défaut ou `Some(contexte.id())` pour un contexte enregistré. Gardez le propriétaire du contexte vivant pendant l’utilisation de ses ressources.

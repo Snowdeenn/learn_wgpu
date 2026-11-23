@@ -16,7 +16,7 @@ pub struct CompositeEffect {
 }
 impl CompositeEffect {
     pub fn new(source: RenderTargetId, format: wgpu::TextureFormat) -> Self {
-        let sampler = backend::sampler::filtering("Composition sampler");
+        let sampler = backend::sampler::filtering(None, "Composition sampler");
         let source_target = target::get(source).unwrap();
         let present_layout = crate::bind_group_layout! {
             wgpu::ShaderStages::FRAGMENT => source_target.texture(),
@@ -44,6 +44,7 @@ impl CompositeEffect {
         let composition = backend::pipeline::register(composition_ctx);
 
         let composition_binding = binding_set::register(
+            None,
             &present_layout,
             vec![
                 TextureBinding::Texture {

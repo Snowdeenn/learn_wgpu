@@ -11,6 +11,7 @@ use crate::backend::texture::TextureBuilder;
 use super::texture::Texture;
 
 pub struct RenderTarget {
+    context_id: Option<crate::backend::context::ContextId>,
     texture: Texture,
     revision: u64,
     descriptor: RenderTargetDescriptor,
@@ -54,6 +55,10 @@ pub struct RenderTargetDescriptor {
 }
 
 impl RenderTarget {
+    pub fn context_id(&self) -> Option<crate::backend::context::ContextId> {
+        self.context_id
+    }
+
     pub fn texture(&self) -> &Texture {
         &self.texture
     }
@@ -74,7 +79,7 @@ impl RenderTarget {
     fn resized(&self, width: u32, height: u32) -> Self {
         let mut descriptor = self.descriptor;
         descriptor.size = TargetSize::Window { width, height };
-        let mut target = create_target(&descriptor);
+        let mut target = create_target(self.context_id, &descriptor);
         target.revision = self
             .revision
             .checked_add(1)
@@ -83,7 +88,7 @@ impl RenderTarget {
     }
 }
 
-pub fn create_target(desc: &RenderTargetDescriptor) -> RenderTarget {
+pub fn create_target(context_id: Option<crate::backend::context::ContextId>, desc: &RenderTargetDescriptor) -> RenderTarget {
     let size = match desc.size {
         TargetSize::Fixed { width, height } => wgpu::Extent3d {
             width,
@@ -109,11 +114,12 @@ pub fn create_target(desc: &RenderTargetDescriptor) -> RenderTarget {
         .with_usage(desc.usage)
         .with_sample_count(desc.sample_count)
         .with_view_formats(&[])
-        .build();
+        .build_in(context_id);
 
     let texture = Texture::from_raw(raw);
 
     RenderTarget {
+        context_id,
         texture,
         revision: 0,
         descriptor: *desc,

@@ -14,7 +14,7 @@ pub struct PresentEffect {
 }
 impl PresentEffect {
     pub fn new(source: RenderTargetId, format: wgpu::TextureFormat) -> Self {
-        let sampler = backend::sampler::filtering("Scene sampler");
+        let sampler = backend::sampler::filtering(None, "Scene sampler");
         let scene_target = target::get(source).expect("Cible de scène introuvable");
 
         let present_layout = crate::bind_group_layout! {
@@ -23,6 +23,7 @@ impl PresentEffect {
         };
 
         let scene_bindings = binding_set::register(
+            None,
             &present_layout,
             vec![
                 TextureBinding::Texture {

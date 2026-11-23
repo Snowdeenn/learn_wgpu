@@ -149,7 +149,7 @@ impl BlurEffect {
         kind: EffectInputKind::Color,
     }];
     pub fn new(format: wgpu::TextureFormat, resolution: [u32; 2]) -> Self {
-        let blur_target_a = target::register(RenderTargetDescriptor {
+        let blur_target_a = target::register(None, RenderTargetDescriptor {
             label: "Blur A",
             size: TargetSize::Window {
                 width: resolution[0],
@@ -162,7 +162,7 @@ impl BlurEffect {
             sample_count: 1, // jsp combien et ce que ça modifie
         });
 
-        let blur_target_b = target::register(RenderTargetDescriptor {
+        let blur_target_b = target::register(None, RenderTargetDescriptor {
             label: "Blur B",
             size: TargetSize::Window {
                 width: resolution[0],
@@ -175,7 +175,7 @@ impl BlurEffect {
             sample_count: 1, // jsp combien et ce que ça modifie
         });
 
-        let blur_sampler = backend::sampler::filtering("Blur sampler");
+        let blur_sampler = backend::sampler::filtering(None, "Blur sampler");
 
         let blur_a = target::get(blur_target_a.id()).unwrap();
 
@@ -184,8 +184,8 @@ impl BlurEffect {
             wgpu::ShaderStages::FRAGMENT => blur_sampler,
         };
 
-        let vertical_unif = buffer::uniform::<BlurParams>(1).unwrap();
-        let horizontal_unif = buffer::uniform::<BlurParams>(1).unwrap();
+        let vertical_unif = buffer::uniform::<BlurParams>(None, 1).unwrap();
+        let horizontal_unif = buffer::uniform::<BlurParams>(None, 1).unwrap();
 
         let blur_settings = BlurSettings::default();
         backend::write_buffer(&horizontal_unif, 0, &[blur_settings.params([1.0, 0.0])]);
@@ -222,6 +222,7 @@ impl BlurEffect {
         let blur_pipeline = backend::pipeline::register(blur_pipeline_ctx);
 
         let blur_binding_a = binding_set::register(
+            None,
             &blur_layout,
             vec![
                 TextureBinding::Texture {
@@ -237,6 +238,7 @@ impl BlurEffect {
         .unwrap();
 
         let blur_binding_b = binding_set::register(
+            None,
             &blur_layout,
             vec![
                 TextureBinding::Texture {

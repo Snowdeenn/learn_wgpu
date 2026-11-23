@@ -122,8 +122,8 @@ pub enum BindingResource {
     Sampler(wgpu::Sampler),
     /// Resolved every preparation; target revision/resize never leaves a stale view.
     Target(SharedResource<RenderTargetId>),
-    LegacyTexture(SharedResource<new_collection::Id<crate::backend::texture::TextureResource>>),
-    LegacySampler(SharedResource<new_collection::Id<crate::backend::texture::TextureResource>>),
+    LegacyTexture(SharedResource<crate::backend::texture::TextureId>),
+    LegacySampler(SharedResource<crate::backend::texture::TextureId>),
     TextureArray(Vec<wgpu::TextureView>),
     SamplerArray(Vec<wgpu::Sampler>),
     BufferArray(Vec<BufferRegion>),
@@ -212,10 +212,16 @@ fn validate_set(set: &BindingSet) -> RenderResult<()> {
                 }
             }
             BindingResource::Target(owner) => {
-                target::get(owner.id())
+                let target = target::get(owner.id())
                     .ok_or_else(|| RenderError::new("binding set", "missing target"))?;
+                if target.context_id() != set.context {
+                    return Err(RenderError::new("binding set", "target belongs to a different context"));
+                }
             }
             BindingResource::LegacyTexture(owner) | BindingResource::LegacySampler(owner) => {
+                if owner.id().context_id() != set.context {
+                    return Err(RenderError::new("binding set", "texture belongs to a different context"));
+                }
                 legacy_texture(owner.id())?;
             }
             BindingResource::BufferArray(regions) => {
@@ -519,15 +525,15 @@ pub(crate) fn validate_resource(
             wgpu::BindingType::Texture { .. } | wgpu::BindingType::StorageTexture { .. },
             BindingResource::Target(owner),
         ) => {
-            if context.is_some() {
-                return Err(fail("historical targets belong to the default context"));
+            let target = target::get(owner.id()).ok_or_else(|| fail("missing target"))?;
+            if target.context_id() != context {
+                return Err(fail("target belongs to a different context"));
             }
-            target::get(owner.id()).ok_or_else(|| fail("missing target"))?;
         }
         (wgpu::BindingType::Texture { .. }, BindingResource::LegacyTexture(owner))
         | (wgpu::BindingType::Sampler(_), BindingResource::LegacySampler(owner)) => {
-            if context.is_some() {
-                return Err(fail("historical textures belong to the default context"));
+            if owner.id().context != context {
+                return Err(fail("texture belongs to a different context"));
             }
             legacy_texture(owner.id())?;
         }
@@ -541,13 +547,13 @@ pub(crate) fn validate_resource(
 }
 
 fn legacy_texture(
-    id: new_collection::Id<crate::backend::texture::TextureResource>,
+    id: crate::backend::texture::TextureId,
 ) -> RenderResult<(wgpu::TextureView, wgpu::Sampler)> {
     use crate::backend::texture::TextureResource;
-    let ctx = super::gpu(None)?;
+    let ctx = super::gpu(id.context)?;
     let textures = ctx.texture_storage.read().unwrap();
     let resource = match textures
-        .get(id)
+        .get(id.raw)
         .ok_or_else(|| RenderError::new("texture", "missing resource"))?
     {
         TextureResource::Separate(resource)

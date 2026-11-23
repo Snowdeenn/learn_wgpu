@@ -101,25 +101,25 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     depth_ordering_and_resize();
     let device = context::device(None);
 
-    let source = target::register(descriptor(TargetSize::Window {
+    let source = target::register(None, descriptor(TargetSize::Window {
         width: 4,
         height: 4,
     }));
     let source_owner = source;
     let source = source_owner.id();
-    let output = target::register(descriptor(TargetSize::Window {
+    let output = target::register(None, descriptor(TargetSize::Window {
         width: 4,
         height: 4,
     }));
     let output_owner = output;
     let output = output_owner.id();
-    let fixed = target::register(descriptor(TargetSize::Fixed {
+    let fixed = target::register(None, descriptor(TargetSize::Fixed {
         width: 4,
         height: 4,
     }));
     let fixed_owner = fixed;
     let fixed = fixed_owner.id();
-    let surface = target::create_target(&descriptor(TargetSize::Fixed {
+    let surface = target::create_target(None, &descriptor(TargetSize::Fixed {
         width: 8,
         height: 8,
     }));
@@ -141,6 +141,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         )
         .build();
     let copy_bindings = binding_set::register(
+        None,
         &copy_layout,
         vec![
             TextureBinding::Texture {
@@ -191,7 +192,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
     let copy_pipeline_owner = copy_pipeline;
     let copy_pipeline = copy_pipeline_owner.id();
 
-    let read_sampler = backend::sampler::filtering("Readback sampler");
+    let read_sampler = backend::sampler::filtering(None, "Readback sampler");
     let read_layout = {
         let output_target = target::get(output).unwrap();
         crate::bind_group_layout! {
@@ -200,6 +201,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
         }
     };
     let read_bindings = binding_set::register(
+        None,
         &read_layout,
         vec![
             TextureBinding::Texture {
@@ -340,9 +342,9 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
             [1, 2, 3, 4, 5]
         );
 
-        target::resize_window_targets([8, 8]);
-        target::resize_window_targets([8, 8]);
-        target::resize_window_targets([0, 0]);
+        target::resize_window_targets(None, [8, 8]);
+        target::resize_window_targets(None, [8, 8]);
+        target::resize_window_targets(None, [0, 0]);
         assert_eq!(target::get(source).unwrap().revision(), 1);
         assert_eq!(target::get(output).unwrap().revision(), 1);
         assert_eq!(target::get(source).unwrap().size(), [8, 8]);
@@ -411,7 +413,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
 
     assert!(target::remove(source));
     assert!(!target::remove(source));
-    let replacement = target::register(descriptor(TargetSize::Fixed {
+    let replacement = target::register(None, descriptor(TargetSize::Fixed {
         width: 8,
         height: 8,
     }));
@@ -451,7 +453,7 @@ fn gpu_framebuffer_passes_resize_and_resource_lifecycle() {
 }
 
 fn owned_resource_lifecycle() {
-    let owner = crate::backend::buffer::storage::<u32>(4).unwrap();
+    let owner = crate::backend::buffer::storage::<u32>(None, 4).unwrap();
     let handle = owner.id();
     assert!(handle.resolve_binding().is_ok());
     drop(owner);
@@ -464,7 +466,7 @@ fn owned_resource_lifecycle() {
         Err(crate::backend::buffer::BindingError::MissingAllocation)
     ));
 
-    let owned = target::register(descriptor(TargetSize::Fixed {
+    let owned = target::register(None, descriptor(TargetSize::Fixed {
         width: 4,
         height: 4,
     }));
@@ -490,13 +492,13 @@ fn owned_resource_lifecycle() {
         usage: wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
-    let (owner, _) = crate::backend::texture::register_texture(raw);
+    let (owner, _) = crate::backend::texture::register_texture(None, raw);
     let texture_id = owner.id();
     assert!(
         context::texture_storage(None)
             .read()
             .unwrap()
-            .get(texture_id)
+            .get(texture_id.raw)
             .is_some()
     );
     drop(owner);
@@ -504,12 +506,12 @@ fn owned_resource_lifecycle() {
         context::texture_storage(None)
             .read()
             .unwrap()
-            .get(texture_id)
+            .get(texture_id.raw)
             .is_none()
     );
 
     let (mesh, _) = crate::geometry::create_rect_vertices();
-    let owner = crate::backend::shape::register(mesh);
+    let owner = crate::backend::shape::register(None, mesh);
     let mesh_id = owner.id();
     drop(owner);
     assert!(!crate::backend::shape::remove(mesh_id));
@@ -558,7 +560,7 @@ fn depth_ordering_and_resize() {
         .with_depth_stencil(depth::opaque_state())
         .with_blend(None)
         .build();
-    let color = target::register(descriptor(TargetSize::Window {
+    let color = target::register(None, descriptor(TargetSize::Window {
         width: 4,
         height: 4,
     }));
@@ -582,7 +584,7 @@ fn depth_ordering_and_resize() {
         mapped_at_creation: false,
     });
     for size in [4, 8] {
-        target::resize_window_targets([size, size]);
+        target::resize_window_targets(None, [size, size]);
         assert_eq!(target::get(depth.id()).unwrap().size(), [size, size]);
         let color_target = target::get(color).unwrap();
         let mut encoder = device.create_command_encoder(&Default::default());

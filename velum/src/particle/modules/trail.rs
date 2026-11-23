@@ -1,8 +1,7 @@
-use new_collection::Id;
 use std::ops::Range;
 
 use super::{ParticleMask, ParticleSpriteInstance, RenderModule, RenderModuleOutput};
-use crate::backend::{RenderInstance, Sprite, texture::TextureResource};
+use crate::backend::{RenderInstance, Sprite, texture::TextureId};
 use crate::particle::data::{Access, ParticleView};
 
 #[allow(
@@ -10,7 +9,7 @@ use crate::particle::data::{Access, ParticleView};
     reason = "API du moteur conservee pour les autres scenes et modules."
 )]
 pub struct RenderTrail {
-    pub texture: Id<TextureResource>,
+    pub texture: TextureId,
     pub indices: Range<u32>,
     pub max_points: usize,
     pub width: f32,

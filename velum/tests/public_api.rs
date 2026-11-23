@@ -61,7 +61,7 @@ fn global_resource_handles_support_ownership() {
     use velum::backend::{binding_set, buffer, pipeline, shape, target, text, texture};
     use velum::core::ResourceHandle;
     fn supports<H: ResourceHandle>() {}
-    supports::<new_collection::Id<texture::TextureResource>>();
+    supports::<texture::TextureId>();
     supports::<new_collection::Id<shape::MeshResource>>();
     supports::<target::RenderTargetId>();
     supports::<binding_set::TextureBindingSetId>();
