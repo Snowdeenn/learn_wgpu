@@ -49,6 +49,7 @@ pub(crate) fn validate_current_attachments(template: &MaterialTemplate) -> Rende
 }
 
 /// Also works with Velum's typed storage and heterogeneous `DrawPipeline` handles.
+#[derive(Debug)]
 pub struct MaterialPipelineContext {
     pub pipeline: wgpu::RenderPipeline,
 }

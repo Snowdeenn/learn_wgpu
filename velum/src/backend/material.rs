@@ -22,7 +22,7 @@ impl From<wgpu::VertexBufferLayout<'_>> for VertexLayout {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ShaderEntry {
     pub shader: wgpu::ShaderModule,
     pub entry_point: String,
@@ -37,7 +37,7 @@ impl ShaderEntry {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MaterialTemplate {
     pub context: Option<ContextId>,
     pub label: String,
@@ -73,6 +73,7 @@ impl MaterialTemplate {
     }
 }
 /// Immutable validated description and its eagerly constructed context. No cache.
+#[derive(Debug)]
 pub struct TemplateResource {
     pub description: MaterialTemplate,
     pub layouts: ResolvedLayouts,
