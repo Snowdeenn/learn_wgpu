@@ -4,7 +4,7 @@ use crate::{OwnedResource, ResourceHandle};
 use std::sync::Arc;
 
 /// Identifies a texture and the GPU context it belongs to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextureId {
     context: Option<context::ContextId>,
     raw: storage::ResourceId<TextureResource>,
