@@ -1,6 +1,7 @@
 use crate::{OwnedResource, ResourceHandle};
 use new_collection::{Arena, Id};
 use std::{
+    hash::{Hash, Hasher},
     marker::PhantomData,
     sync::{Arc, RwLock},
 };
@@ -20,7 +21,6 @@ pub trait Stored: Sized + Send + Sync + 'static {
 }
 
 /// Generational access identifier; copying an ID does not retain its resource.
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct ResourceId<T: Stored> {
     raw: Id<Arc<T>>,
     marker: PhantomData<fn() -> T>,
@@ -37,6 +37,11 @@ impl<T: Stored> PartialEq for ResourceId<T> {
     }
 }
 impl<T: Stored> Eq for ResourceId<T> {}
+impl<T: Stored> Hash for ResourceId<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.raw.hash(state);
+    }
+}
 impl<T: Stored> PartialOrd for ResourceId<T> {
     fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(rhs))

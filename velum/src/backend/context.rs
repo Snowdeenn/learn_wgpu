@@ -11,7 +11,7 @@ pub struct Context {
     pub(super) buffer: Arc<RwLock<BufferArena>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContextId {
     raw: Id<Arc<Context>>,
     uid: u64,
