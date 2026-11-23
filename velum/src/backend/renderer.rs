@@ -40,11 +40,12 @@ impl std::error::Error for RendererInitError {
 }
 
 pub struct Renderer {
+    instance: wgpu::Instance,
     pub surface: wgpu::Surface<'static>,
     pub conf: wgpu::SurfaceConfiguration,
 }
 
-fn select_surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+pub fn select_surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
     formats
         .iter()
         .copied()
@@ -92,7 +93,15 @@ impl Renderer {
 
         super::text::init(conf.format).map_err(RendererInitError::Text)?;
 
-        Ok(Self { surface, conf })
+        Ok(Self {
+            instance,
+            surface,
+            conf,
+        })
+    }
+
+    pub fn instance(&self) -> &wgpu::Instance {
+        &self.instance
     }
 
     pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {

@@ -61,6 +61,7 @@ pub use sort::{DrawSortKey, SortPolicy};
 pub use buffer::write_buffer;
 pub use pipeline::{PipelineContext, bind};
 pub use shader::load_shader;
+pub use renderer::select_surface_format;
 #[allow(
     unused_imports,
     reason = "Reexport de l'API du moteur, non utilise par la scene actuelle."
